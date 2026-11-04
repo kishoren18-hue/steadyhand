@@ -1,0 +1,373 @@
+<title>SteadyHand</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one instrument console. Shared transport on top, two controllers side by side,
+   each with a hand, a live confidence meter and a full-session decision strip. */
+:root {
+  --bg: #f3f5f4; --surface: #ffffff; --ink: #15201c; --muted: #56625d; --line: #dbe2df;
+  --ours: #2a78d6; --base: #66706c; --misfire: #c8393a; --hold: #c5cfcb; --skin: #e9d6c6; --skin-edge: #b89a85;
+  --f-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-data: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1412; --surface: #151d1a; --ink: #e8eeeb; --muted: #9ba7a2; --line: #26312d;
+  --ours: #3987e5; --base: #8e9994; --misfire: #e66767; --hold: #34413c; --skin: #8a7464; --skin-edge: #c9ab95; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1412; --surface: #151d1a; --ink: #e8eeeb; --muted: #9ba7a2; --line: #26312d;
+  --ours: #3987e5; --base: #8e9994; --misfire: #e66767; --hold: #34413c; --skin: #8a7464; --skin-edge: #c9ab95; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.5; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+header { display: grid; gap: 8px; max-width: 68ch; }
+.eyebrow { font-family: var(--f-data); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(32px, 6vw, 48px); line-height: 1.02; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 700; font-size: 22px; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.lede { color: var(--muted); font-size: 17px; }
+.num { font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+
+/* transport */
+.transport { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px;
+  display: grid; grid-template-columns: auto 1fr; gap: 16px 24px; align-items: center; }
+.doing { display: grid; gap: 2px; }
+.doing .now { font-family: var(--f-display); font-weight: 700; font-size: 26px; line-height: 1.1; }
+.ctrls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; justify-content: flex-end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+label, .lbl { font-family: var(--f-data); font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+select, button { font: inherit; font-size: 15px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+select { max-width: 100%; }
+button { cursor: pointer; font-weight: 700; }
+button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); min-width: 92px; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--ours); outline-offset: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; background: transparent; font-weight: 400; padding: 8px 10px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); font-weight: 700; }
+input[type=range] { width: 180px; max-width: 100%; accent-color: var(--ours); }
+.progress { grid-column: 1 / -1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 0; background: var(--ink); }
+
+/* controllers */
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.ctl { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: grid; gap: 14px; min-width: 0; }
+.ctl.ours { border-color: color-mix(in srgb, var(--ours) 55%, var(--line)); }
+.ctl-head { display: grid; gap: 2px; }
+.ctl-head .rule { color: var(--muted); font-size: 14px; }
+.ctl-head h2 .tag { font-family: var(--f-data); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ours); border: 1px solid currentColor; border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 3px; }
+.stage { display: grid; grid-template-columns: 132px 1fr; gap: 16px; align-items: center; }
+.hand { width: 132px; height: 158px; }
+.hand .g { transition: transform .22s ease; transform-box: view-box; transform-origin: 100px 172px; }
+.hand .fingers { transition: transform .22s ease; transform-box: view-box; transform-origin: 100px 104px; }
+.hand .thumb { transition: transform .22s ease; transform-box: view-box; transform-origin: 74px 146px; }
+.hand .skin { fill: var(--skin); stroke: var(--skin-edge); stroke-width: 2.5; }
+.hand.bad .skin { stroke: var(--misfire); stroke-width: 4; }
+.hand.idle .g { opacity: .55; }
+.readout { display: grid; gap: 10px; min-width: 0; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; padding: 6px 10px; border-radius: 999px; width: fit-content; max-width: 100%;
+  background: var(--bg); border: 1px solid var(--line); }
+.chip svg { flex: none; }
+.chip.act { border-color: var(--ink); }
+.chip.bad { color: var(--misfire); border-color: var(--misfire); }
+.chip.hold { color: var(--muted); }
+.meter { display: grid; gap: 4px; }
+.bar { position: relative; height: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--hold); border-radius: 2px 0 0 2px; }
+.bar .fill.on { background: var(--ink); }
+.bar .tick { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--misfire); }
+.meter .scale { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.stat { display: grid; gap: 0; }
+.stat b { font-family: var(--f-data); font-size: 24px; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.stat b.warn { color: var(--misfire); }
+.strip { display: grid; gap: 6px; }
+.strip canvas { width: 100%; height: 34px; display: block; border-radius: 3px; background: var(--bg); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* findings */
+.findings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.finding { border-top: 2px solid var(--ink); padding-top: 10px; display: grid; gap: 4px; align-content: start; }
+.finding .big { font-family: var(--f-data); font-weight: 600; font-size: 28px; font-variant-numeric: tabular-nums; }
+.finding p { color: var(--muted); font-size: 15px; }
+.notes { display: grid; gap: 10px; max-width: 72ch; color: var(--muted); font-size: 15px; }
+.notes a { color: var(--ours); }
+.notes h2 { color: var(--ink); }
+
+@media (max-width: 760px) {
+  .transport { grid-template-columns: 1fr; }
+  .ctrls { justify-content: flex-start; }
+  .pair, .findings { grid-template-columns: 1fr; }
+}
+@media (max-width: 400px) { .stage { grid-template-columns: 104px 1fr; } .hand { width: 104px; height: 125px; } }
+@media (prefers-reduced-motion: reduce) { .hand .g, .hand .fingers, .hand .thumb { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Prosthetic control · real muscle recordings</div>
+    <h1>A prosthetic hand that knows when it's unsure</h1>
+    <p class="lede">These are real 8-channel forearm EMG recordings from a person the model never trained on, replayed at real speed. Two controllers read the same signal and decide every 50 ms whether to move the hand or hold still. The only difference is how each picks its confidence cutoff.</p>
+  </header>
+
+  <section class="transport" aria-label="Playback">
+    <div class="doing">
+      <span class="lbl">Person is doing</span>
+      <span class="now" id="now">Rest</span>
+      <span class="num" id="clock" style="color:var(--muted);font-size:14px">0.0 s</span>
+    </div>
+    <div class="ctrls">
+      <div class="field">
+        <label for="person">Person (never seen in training)</label>
+        <select id="person"></select>
+      </div>
+      <div class="field">
+        <label for="target">Our target: misfires ≤ <span id="targetOut" class="num">5%</span></label>
+        <input id="target" type="range" min="0" max="5" step="1" value="1">
+      </div>
+      <div class="field">
+        <span class="lbl">Speed</span>
+        <div class="seg" role="group" aria-label="Playback speed">
+          <button id="s1" aria-pressed="true">1×</button><button id="s4" aria-pressed="false">4×</button>
+        </div>
+      </div>
+      <button class="primary" id="play">Play</button>
+    </div>
+    <div class="progress" aria-hidden="true"><i id="prog"></i></div>
+  </section>
+
+  <section class="pair">
+    <article class="ctl" id="ctl-fixed"></article>
+    <article class="ctl ours" id="ctl-ours"></article>
+  </section>
+
+  <section class="findings" aria-label="Results across all 36 people">
+    <div class="finding"><span class="lbl">Tuned on training people</span><span class="big">6 of 6</span>
+      <p>targets broken on new users. Asked for ≤5% misfires, new users got 6.3%.</p></div>
+    <div class="finding"><span class="lbl">Calibrated (ours)</span><span class="big">0 of 6</span>
+      <p>targets broken on average. Asked for ≤5%, new users got 1.4%.</p></div>
+    <div class="finding"><span class="lbl">Worst person, 5% target</span><span class="big">25% → 9%</span>
+      <p>misfire rate of the single worst user, LibEMG default vs ours. All figures use LibEMG's LDA classifier.</p></div>
+  </section>
+
+  <section class="notes">
+    <h2>What's going on</h2>
+    <p>A classifier turns each 250 ms slice of muscle signal into a gesture and a confidence score. LibEMG, an open-source prosthetics library, lets the hand move only when that score is above a fixed cutoff, 0.90 by default. On people the model has never seen, those scores are overconfident, so a fixed cutoff can't tell you how often the hand will move the wrong way.</p>
+    <p>SteadyHand keeps LibEMG's rule and picks the cutoff differently. You set a target misfire rate. Conformal risk control computes a cutoff from other unseen people that keeps the average new user under that target. A short check on the new person's first recording can only raise the cutoff, never lower it, which protects the people the model fits worst.</p>
+    <p>Limits: offline recordings from 36 able-bodied people, one dataset, no amputees and no physical hand. The guarantee holds on average across people, not for every individual. Data: UCI "EMG Data for Gestures" (Krilova et al., 2018). Library: <a href="https://github.com/LibEMG/libemg" rel="noopener">LibEMG</a> (Eddy et al., 2023). Code and full results: <a href="https://github.com/kishoren18-hue/steadyhand" rel="noopener">github.com/kishoren18-hue/steadyhand</a>.</p>
+  </section>
+</div>
+
+<template id="ctl-tpl">
+  <div class="ctl-head"><h2 class="name"></h2><p class="rule"></p></div>
+  <div class="stage">
+    <svg class="hand" viewBox="0 0 200 240" role="img" aria-label="Prosthetic hand position">
+      <rect class="skin" x="74" y="168" width="52" height="72" rx="10"/>
+      <g class="g">
+        <g class="fingers">
+          <rect class="skin" x="74" y="46" width="13" height="64" rx="6.5"/>
+          <rect class="skin" x="89" y="34" width="13" height="76" rx="6.5"/>
+          <rect class="skin" x="104" y="38" width="13" height="72" rx="6.5"/>
+          <rect class="skin" x="119" y="54" width="12" height="56" rx="6"/>
+        </g>
+        <rect class="skin" x="70" y="96" width="64" height="78" rx="14"/>
+        <rect class="skin thumb" x="46" y="112" width="13" height="50" rx="6.5" transform="rotate(-28 52 137)"/>
+      </g>
+    </svg>
+    <div class="readout">
+      <span class="chip hold"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"></svg><span class="state">Holding still</span></span>
+      <div class="meter">
+        <span class="lbl">Confidence</span>
+        <div class="bar"><span class="fill"></span><span class="tick"></span></div>
+        <div class="scale num"><span class="cv">0.000</span><span class="tv"></span></div>
+      </div>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><span class="lbl">Hand moves</span><b class="acted num">0%</b></div>
+    <div class="stat"><span class="lbl">Misfires</span><b class="mis num">0%</b></div>
+  </div>
+  <div class="strip">
+    <span class="lbl">Every decision this session</span>
+    <canvas aria-label="Decision timeline: correct moves, misfires and holds"></canvas>
+    <div class="legend"><span><i class="lg-ok"></i>moved correctly</span><span><i class="lg-bad"></i>misfire</span><span><i class="lg-hold"></i>held still</span></div>
+  </div>
+</template>
+
+<script>
+const DATA = __DATA__;
+const G = DATA.gestures.map(g => g[0].toUpperCase() + g.slice(1));
+const ALPHAS = DATA.alphas;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// pose for each gesture: [hand rotation, vertical squash, fingers curled]
+const POSE = [
+  { r: 0, sy: 1, curl: false },      // rest
+  { r: 0, sy: 1, curl: true },       // fist
+  { r: 0, sy: .62, curl: false },    // wrist flexion (palm tips toward viewer)
+  { r: 0, sy: .62, curl: false, back: true }, // wrist extension
+  { r: -24, sy: 1, curl: false },    // radial deviation (toward thumb)
+  { r: 24, sy: 1, curl: false },     // ulnar deviation (toward pinky)
+];
+
+const ICON = {
+  act: '<path d="M2 7.5l3.2 3L12 3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  bad: '<path d="M3 3l8 8M11 3l-8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  hold: '<rect x="3" y="2.5" width="2.8" height="9" rx="1" fill="currentColor"/><rect x="8.2" y="2.5" width="2.8" height="9" rx="1" fill="currentColor"/>',
+};
+
+function build(el, cfg) {
+  el.append(document.getElementById('ctl-tpl').content.cloneNode(true));
+  const q = s => el.querySelector(s);
+  q('.name').innerHTML = cfg.name;
+  return { el, q, hand: q('.hand'), g: q('.g'), fingers: q('.fingers'), thumb: q('.thumb'),
+    chip: q('.chip'), icon: q('.chip svg'), state: q('.state'), fill: q('.fill'), tick: q('.tick'),
+    cv: q('.cv'), tv: q('.tv'), acted: q('.acted'), mis: q('.mis'), rule: q('.rule'), canvas: q('canvas'), last: 0 };
+}
+const C = {
+  fixed: build(document.getElementById('ctl-fixed'), { name: 'LibEMG default' }),
+  ours:  build(document.getElementById('ctl-ours'),  { name: 'SteadyHand<span class="tag">ours</span>' }),
+};
+
+// person list: hardest first, then everyone by id
+const sel = document.getElementById('person');
+const ids = Object.keys(DATA.people).map(Number).sort((a, b) => a - b);
+ids.forEach(id => {
+  const acc = DATA.people[id].accuracy;
+  const o = new Option(`Person ${id} · model accuracy ${(acc * 100).toFixed(0)}%`, id);
+  sel.add(o);
+});
+sel.value = '22';
+
+let P, frame = 0, playing = false, speed = 1, timer = null;
+const tIn = document.getElementById('target');
+
+function thresholds() {
+  const a = String(ALPHAS[+tIn.value]);
+  return { fixed: 0.9, ours: P['conformal+personal'][a] };
+}
+
+function scaleConf(c) {           // spread 0.9-1.0 so both cutoffs are visible
+  return c <= 0.9 ? (c / 0.9) * 0.5 : 0.5 + ((c - 0.9) / 0.1) * 0.5;
+}
+
+function load() {
+  P = DATA.people[sel.value];
+  frame = 0;
+  document.getElementById('targetOut').textContent = (ALPHAS[+tIn.value] * 100).toFixed(ALPHAS[+tIn.value] * 100 % 1 ? 1 : 0) + '%';
+  const T = thresholds();
+  for (const k of ['fixed', 'ours']) {
+    const c = C[k], t = T[k], n = P.y.length;
+    let acted = 0, mis = 0;
+    for (let i = 0; i < n; i++) if (P.conf[i] > t) { acted++; if (P.pred[i] !== P.y[i]) mis++; }
+    c.acted.textContent = (acted / n * 100).toFixed(0) + '%';
+    c.mis.textContent = (mis / n * 100).toFixed(1) + '%';
+    c.mis.classList.toggle('warn', mis / n > ALPHAS[+tIn.value]);
+    c.rule.textContent = k === 'fixed'
+      ? 'Moves when confidence > 0.900. No target.'
+      : `Moves when confidence > ${t.toFixed(4)}, picked to keep misfires ≤ ${document.getElementById('targetOut').textContent}.`;
+    c.tick.style.left = `calc(${scaleConf(t) * 100}% - 1px)`;
+    c.tv.textContent = 'cutoff ' + t.toFixed(t >= .999 ? 4 : 3);
+    c.last = 0;
+    drawStrip(c, t);
+  }
+  render();
+}
+
+function drawStrip(c, t) {
+  const cv = c.canvas, dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  cv.width = Math.max(1, w * dpr); cv.height = h * dpr;
+  const x = cv.getContext('2d'); x.scale(dpr, dpr);
+  const n = P.y.length, bw = w / n;
+  const ok = css('--ink'), bad = css('--misfire'), hold = css('--hold');
+  for (let i = 0; i < n; i++) {
+    const act = P.conf[i] > t, wrong = P.pred[i] !== P.y[i];
+    x.fillStyle = !act ? hold : wrong ? bad : ok;
+    const top = !act ? h * .35 : wrong ? 0 : h * .18, ht = !act ? h * .3 : wrong ? h : h * .64;
+    x.fillRect(i * bw, top, Math.max(bw - .4, .6), ht);
+  }
+  c.stripW = w; c.n = n;
+  c.el.querySelector('.lg-ok').style.background = ok;
+  c.el.querySelector('.lg-bad').style.background = bad;
+  c.el.querySelector('.lg-hold').style.background = hold;
+}
+
+function pose(c, g, bad) {
+  const p = POSE[g];
+  c.g.style.transform = `rotate(${p.r}deg) scaleY(${p.sy})`;
+  c.fingers.style.transform = p.curl ? 'scaleY(.32)' : 'scaleY(1)';
+  c.thumb.style.transform = p.curl ? 'translate(16px,-4px) rotate(38deg)' : 'none';
+  c.hand.classList.toggle('bad', !!bad);
+}
+
+function render() {
+  const i = Math.min(frame, P.y.length - 1);
+  const T = thresholds();
+  document.getElementById('now').textContent = G[P.y[i]];
+  document.getElementById('clock').textContent = `${(i * DATA.increment_ms / 1000).toFixed(1)} s of ${(P.y.length * DATA.increment_ms / 1000).toFixed(1)} s`;
+  document.getElementById('prog').style.width = (i / (P.y.length - 1) * 100) + '%';
+  for (const k of ['fixed', 'ours']) {
+    const c = C[k], conf = P.conf[i], act = conf > T[k], wrong = P.pred[i] !== P.y[i];
+    let cls = 'hold', text = 'Holding still';
+    if (act) { c.last = P.pred[i]; cls = wrong ? 'bad' : 'act'; text = wrong ? `Misfire: moved to ${G[P.pred[i]].toLowerCase()}` : `Moving: ${G[P.pred[i]].toLowerCase()}`; }
+    pose(c, c.last, act && wrong);
+    c.hand.classList.toggle('idle', !act);
+    c.chip.className = 'chip ' + cls; c.state.textContent = text; c.icon.innerHTML = ICON[cls];
+    c.fill.style.width = (scaleConf(conf) * 100) + '%';
+    c.fill.classList.toggle('on', act);
+    c.cv.textContent = 'now ' + conf.toFixed(conf >= .999 ? 4 : 3);
+    drawHead(c, i, T[k]);
+  }
+}
+
+function drawHead(c, i, t) {
+  // redraw strip lightly: overlay playhead by re-drawing column region
+  drawStrip(c, t);
+  const x = c.canvas.getContext('2d');
+  x.fillStyle = css('--ours');
+  x.fillRect((i + .5) * (c.stripW / c.n) - 1, 0, 2, c.canvas.clientHeight);
+}
+
+function tick() {
+  frame += 1;
+  if (frame >= P.y.length) { frame = P.y.length - 1; stop(); }
+  render();
+}
+function start() {
+  if (frame >= P.y.length - 1) frame = 0;
+  playing = true; document.getElementById('play').textContent = 'Pause';
+  clearInterval(timer); timer = setInterval(tick, DATA.increment_ms / speed);
+}
+function stop() { playing = false; document.getElementById('play').textContent = 'Play'; clearInterval(timer); }
+
+document.getElementById('play').onclick = () => playing ? stop() : start();
+for (const [id, s] of [['s1', 1], ['s4', 4]]) document.getElementById(id).onclick = () => {
+  speed = s;
+  document.getElementById('s1').setAttribute('aria-pressed', s === 1);
+  document.getElementById('s4').setAttribute('aria-pressed', s === 4);
+  if (playing) start();
+};
+sel.onchange = () => { stop(); load(); };
+tIn.oninput = () => { load(); };
+window.addEventListener('resize', () => load_keep());
+function load_keep() { const f = frame; load(); frame = f; render(); }
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', load_keep);
+new MutationObserver(load_keep).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// open at an informative moment: the first frame where the two controllers disagree
+load();
+(function seek() {
+  const T = thresholds();
+  for (let i = 0; i < P.y.length; i++) {
+    const a = P.conf[i] > T.fixed, b = P.conf[i] > T.ours;
+    if (a && !b && P.pred[i] !== P.y[i]) { frame = i; break; }
+  }
+  render();
+})();
+</script>
