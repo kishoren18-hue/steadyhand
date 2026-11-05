@@ -5,3 +5,7 @@ __pycache__/
 data/
 results/features_*.npz
 results/log_*.txt
+paper/*.aux
+paper/*.log
+paper/*.out
+paper/build.log

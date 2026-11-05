@@ -1,0 +1,21 @@
+\begin{tabular}{@{}llrrrrr@{}}
+\toprule
+Data & Cutoff & $\alpha$ & Mean & Worst & Over & Moves \\
+\midrule
+UCI & Fixed 0.90 (LibEMG) & -- & 2.8\% & 24.9\% & -- & 49.3\% \\
+UCI & Tuned on training data & 5\% & 6.3\% & 32.7\% & 15/36 & 64.1\% \\
+UCI & Conformal & 5\% & 2.1\% & 23.1\% & 4/36 & 42.3\% \\
+UCI & Conformal + personal & 5\% & 1.5\% & 9.2\% & 4/36 & 40.5\% \\
+UCI & Tuned on training data & 10\% & 12.9\% & 45.9\% & 19/36 & 81.5\% \\
+UCI & Conformal & 10\% & 6.7\% & 32.7\% & 9/36 & 65.4\% \\
+UCI & Conformal + personal & 10\% & 5.3\% & 14.9\% & 9/36 & 62.2\% \\
+\midrule
+3DC & Fixed 0.90 (LibEMG) & -- & 5.2\% & 26.5\% & -- & 14.8\% \\
+3DC & Tuned on training data & 5\% & 10.4\% & 54.5\% & 11/22 & 23.7\% \\
+3DC & Conformal & 5\% & 0.5\% & 5.2\% & 1/22 & 2.1\% \\
+3DC & Conformal + personal & 5\% & 0.5\% & 5.2\% & 1/22 & 2.1\% \\
+3DC & Tuned on training data & 10\% & 18.3\% & 76.6\% & 16/22 & 35.7\% \\
+3DC & Conformal & 10\% & 5.3\% & 26.9\% & 4/22 & 15.0\% \\
+3DC & Conformal + personal & 10\% & 3.4\% & 10.6\% & 1/22 & 12.6\% \\
+\bottomrule
+\end{tabular}

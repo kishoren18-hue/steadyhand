@@ -1,0 +1,190 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cite}
+\input{numbers.tex}
+\newtheorem{proposition}{Proposition}
+\newcommand{\target}{\alpha}
+
+\begin{document}
+
+\title{Misfire-Rate Guarantees for Myoelectric Prosthesis Control: Conformal and Adaptive Rejection Thresholds}
+
+\author{\IEEEauthorblockN{Kishore Nuthalapati}
+\IEEEauthorblockA{Independent researcher, Alpharetta, GA, USA\\
+kishorenuthalapat@gmail.com}}
+
+\maketitle
+
+\begin{abstract}
+Pattern-recognition prosthesis controllers commonly act only when the classifier's confidence exceeds a fixed threshold, but a fixed threshold says nothing about how often the hand will move the wrong way for a new user or after conditions change. We choose the threshold of an existing open-source rejection controller from a target misfire rate instead. A conformal threshold, calibrated across previous users, bounds the expected misfire rate of a new user drawn from the same population. An adaptive threshold, updated online from feedback, bounds each user's own misfire rate on any sequence of decisions. In leave-one-person-out evaluation on four public datasets (\nPeople{} people), thresholds tuned on training data exceeded every target tested with shared models, while conformal thresholds met the target on average at every level, with and without majority voting. After a $45^\circ$ armband rotation, the default threshold of 0.90 misfired on \shiftFixedMean{} of decisions and a conformal threshold calibrated before the rotation gave \shiftBeforeMean{} at a 5\% target. The adaptive threshold held every user at the target (mean \shiftAdaptMean{}, worst user \shiftAdaptWorst{}) while acting on \shiftAdaptMoves{} of decisions, more than the best fixed threshold chosen in hindsight. Its guarantee held in all \nRuns{} runs. Code and data are public.
+\end{abstract}
+
+\section{Introduction}
+
+Myoelectric prosthetic hands classify surface electromyography (EMG) into gestures and update the hand every few tens of milliseconds. A wrong decision moves the hand when the user did not ask for it: the hand may open while holding a cup. Confidence-based rejection, in which the controller acts only when the classifier's top probability exceeds a threshold and otherwise holds still, reduces such errors and improves usability~\cite{scheme2013,robertson2019}.
+
+In practice the threshold is a fixed number. LibEMG, a widely used open-source library for myoelectric control, defaults to 0.90~\cite{eddy2023}. The misfire rate that number produces depends on the classifier, the user and the recording conditions. Class probabilities are often overconfident, and EMG patterns differ strongly between people~\cite{yang2024} and shift with electrode displacement and arm position~\cite{campbell2024,fougner2011}. A threshold tuned on training data inherits the classifier's optimism about the people it was trained on.
+
+We ask whether a threshold can instead be set from a target such as ``misfire on at most 5\% of decisions,'' and whether that target holds where it matters: for people the model has never seen, and after conditions change. Our contributions are:
+\begin{enumerate}
+\item A \emph{conformal threshold} for an unchanged rejection controller, using conformal risk control~\cite{angelopoulos2024} with people as the exchangeable unit, so a new user's expected misfire rate is at most the target. A personal check on the user's calibration recording can only raise the threshold, preserving the guarantee and shrinking the worst case. An exact algorithm extends the calibration to majority voting.
+\item An \emph{adaptive threshold} that applies online quantile tracking~\cite{gibbs2021,angelopoulos2023pid} to rejection, with a deterministic per-user bound that holds on any decision sequence, including electrode shift.
+\item A leave-one-person-out evaluation on four public datasets covering new users, later sessions, a $45^\circ$ electrode shift and four new arm positions, with open-source code that plugs into LibEMG.
+\end{enumerate}
+
+\section{Related Work}
+
+Scheme \emph{et al.} introduced confidence-based rejection for pattern-recognition myoelectric control~\cite{scheme2013}. Robertson \emph{et al.} studied rejection thresholds in real-time use and found that usability peaked at intermediate thresholds that depend on the classifier~\cite{robertson2019}. Other work improves the confidence score itself, for example with distance-based confidence from metric learning~\cite{tam2024}, or compares uncertainty estimates for selective prediction on EMG and finds plain softmax confidence competitive~\cite{aydogan2026}. Our methods are complementary: any score can be plugged in, and we change how the threshold on it is chosen. Cross-subject variability and confounding factors such as electrode shift and limb position are well documented~\cite{yang2024,campbell2024,fougner2011}. Conformal prediction gives finite-sample guarantees for any model~\cite{vovk2005}; conformal risk control extends them to monotone losses~\cite{angelopoulos2024}, and adaptive conformal inference maintains long-run guarantees under distribution shift~\cite{gibbs2021,angelopoulos2023pid}. To our knowledge, neither has been applied to rejection thresholds in myoelectric control.
+
+\section{Methods}
+
+\subsection{Rejection and misfires}
+For decision $i$ the classifier outputs a gesture $\hat y_i$ and confidence $c_i$, its top class probability. The rejection controller acts on $\hat y_i$ if $c_i > t$ and holds still otherwise. A \emph{misfire} is a decision that acts and is wrong, and person $p$'s misfire rate over their decisions $W_p$ is
+\begin{equation}
+R_p(t) = \frac{1}{|W_p|}\sum_{i\in W_p} \mathbf{1}\left[c_i > t,\ \hat y_i \neq y_i\right].
+\end{equation}
+$R_p$ is non-increasing in $t$. We also report the active rate, the share of decisions on which the hand moves.
+
+\subsection{Conformal threshold across people}
+Decisions within a person are strongly dependent, so we treat people, not windows, as exchangeable. For a held-out user, the remaining $n$ people are split into five folds and each fold is scored by a model trained on the other four (cross-fitting), so every calibration person is scored by a model that never saw them. With $\bar R(t)$ the mean of their misfire curves, we choose
+\begin{equation}
+\hat t = \inf\left\{t : \tfrac{n}{n+1}\bar R(t) + \tfrac{1}{n+1} \le \target\right\}.
+\end{equation}
+If the new person is exchangeable with the calibration people, $\mathbb{E}[R_{n+1}(\hat t)] \le \target$~\cite{angelopoulos2024}. The guarantee is in expectation over people, and targets below $1/(n+1)$ cannot be met.
+
+\emph{Personal check.} Fitting a prosthesis already includes a short guided recording. We compute the smallest threshold meeting $\target$ on that recording and use the larger of the two thresholds. Since $R_p$ is non-increasing, this can only lower the user's misfire rate, so the guarantee is preserved.
+
+\emph{Majority voting.} LibEMG applies rejection and then outputs the most common of the last $k$ outputs, with ties going to ``hold still.'' Voted misfire curves need not be monotone, so each calibration curve is replaced by its running maximum from the right, an upper bound that is non-increasing. A voted output can change only at the $k$ confidences in its window, so we evaluate the vote in each of the $k+1$ intervals and accumulate the changes, which computes the voted curve exactly at every threshold. Our implementation matches LibEMG's own rejection and voting code output for output.
+
+\subsection{Adaptive threshold with a per-user guarantee}
+The conformal guarantee needs calibration people recorded under the same conditions as the new user. When conditions change, we use feedback instead. With score $s_i = \min(-\log_{10}(1-c_i),\, S)$, $S=6$, the controller acts if $s_i > \tau_i$, and after each decision with feedback
+\begin{equation}
+\tau_{i+1} = \max\left(\tau_i + \eta\,(m_i - \target),\ 0\right),
+\end{equation}
+where $m_i$ indicates a misfire and $\eta$ is a step size (0.5 throughout).
+
+\begin{proposition}
+If $\tau_1 \le S$, then for every $T$ and every sequence of decisions,
+$\frac{1}{T}\sum_{i=1}^{T} m_i \le \target + \frac{S+\eta-\tau_1}{\eta T}.$
+\end{proposition}
+\begin{proof}
+$\tau$ rises only after a misfire, which requires $s_i > \tau_i$, hence $\tau_i < S$, so after the rise $\tau_{i+1} < S + \eta$. When $\tau_i \ge S$ the controller cannot act and $\tau$ falls. Thus $\tau_i \le S+\eta$ for all $i$. Summing the update, $\eta\sum_i (m_i - \target) = \tau_{T+1} - \tau_1 - c$ with $c \ge 0$ the total added by the floor at zero, so $\sum_i (m_i-\target) \le (S+\eta-\tau_1)/\eta$.
+\end{proof}
+No assumption is made about the data, so the bound holds under electrode shift, fatigue or any other change. We start $\tau_1$ at the conformal threshold. With feedback on only a subset of decisions, the bound holds on that subset.
+
+\section{Experimental Setup}
+
+\begin{table}[t]
+\caption{Datasets. ``Change'' separates calibration from testing.}
+\label{tab:data}
+\centering
+\footnotesize
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Dataset & People & Gestures & Change \\
+\midrule
+UCI EMG for Gestures~\cite{krilova2018} & 36 & 6 & Later session \\
+3DC~\cite{coteallard2019} & 22 & 11 & Later session \\
+CIIL electrode shift~\cite{campbell2024} & 21 & 5 & $45^\circ$ rotation \\
+Limb position~\cite{fougner2011} & 12 & 8 & 4 new arm positions \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:data} lists the datasets. EMG is cut into 250\,ms windows with a 50\,ms step (one decision every 50\,ms), described by LibEMG's Hudgins time-domain features (mean absolute value, zero crossings, slope sign changes, waveform length) and classified by LibEMG's linear discriminant analysis (LDA). A random forest serves as a robustness check.
+
+\emph{Shared models (UCI, 3DC).} For each person, a model is trained on all other people, thresholds are chosen, and the person's later session is scored. Personal checks use only the person's first session.
+
+\emph{User-specific models under change (all four datasets).} Each person's model is trained on the first half of their pre-change recordings. The second half is their calibration recording, and all post-change decisions, in recording order, form the test stream. We compare conformal thresholds calibrated on other people before the change, conformal thresholds calibrated on other people after the same change (which requires such recordings to exist), the adaptive threshold with feedback on every decision or on a random 10\%, and the best fixed threshold for each user chosen in hindsight.
+
+Targets are $\target \in \{3, 5, 7.5, 10, 15, 20\}\%$. We report mean and worst-user misfire rates, the number of users above target, and the active rate. A target is \emph{met on average} when the mean misfire rate is at or below it.
+
+\section{Results}
+
+\subsection{New users with shared models}
+
+\begin{table}[t]
+\caption{Shared LDA models, unseen users. Mean and worst misfire rate, users above target, and share of decisions on which the hand moves.}
+\label{tab:shared}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\input{tables/shared.tex}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/shared.pdf}
+\caption{Shared models: tuned thresholds overshoot every target, conformal thresholds with a personal check stay below it. Dotted: target.}
+\label{fig:shared}
+\end{figure}
+
+Without rejection, shared models reached \accUci{} (UCI) and \accTdc{} (3DC) accuracy on unseen users. The default threshold produced mean misfire rates of \fixedMeanUci{} and \fixedMeanTdc{}, with worst users at \fixedWorstUci{} and \fixedWorstTdc{} (Table~\ref{tab:shared}). Thresholds tuned on training data met \tunedKeptUci{} of 6 targets on either dataset: at a 5\% target, new users saw \tunedFiveUci{} and \tunedFiveTdc{} (Fig.~\ref{fig:shared}). Conformal thresholds met all 6 targets on average on both datasets, as did the conformal threshold with a personal check, which cut the worst UCI user at 5\% from \worstConfUci{} to \worstConfPersUci{}. With five-decision majority voting, calibrating on the voted output and adding the personal check also met all 6 targets on both datasets. With a random forest, the tuned threshold fell to zero because the forest is nearly certain on its training data, giving \rfTunedFive{} misfires at every target, while conformal thresholds met all \rfKeptConf{} targets; the default threshold gave \rfFixed{} with this classifier against \fixedMeanUci{} with LDA, so the meaning of a fixed number depends on the classifier.
+
+\subsection{When conditions change}
+
+\begin{table*}[t]
+\caption{User-specific LDA models after a change, 5\% target (fixed threshold has no target). Mean and worst-user misfire rate (\%), and share of decisions on which the hand moves (\%). Number of people in parentheses.}
+\label{tab:drift}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4.2pt}
+\input{tables/drift.tex}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/worst_user.pdf}
+\caption{Worst user's misfire rate against the target, user-specific models after a change. Dashed: target. The adaptive threshold stays at the target on every dataset; a conformal threshold calibrated before the change does not survive an electrode shift.}
+\label{fig:worst}
+\end{figure*}
+
+After the $45^\circ$ rotation, user-specific models fell to \shiftAcc{} accuracy and the default threshold misfired on \shiftFixedMean{} of decisions (worst user \shiftFixedWorst{}; Table~\ref{tab:drift}). A conformal threshold calibrated before the rotation met \shiftBeforeKept{} of 6 targets: at 5\% it gave \shiftBeforeMean{} (worst \shiftBeforeWorst{}). Calibrated on other people after the rotation, it met every target but held the hand still at 5\%, acting on \shiftAfterMoves{} of decisions. The adaptive threshold kept the mean at \shiftAdaptMean{} (95\% bootstrap interval over users \shiftAdaptCI{}) and the worst user at \shiftAdaptWorst{}, while acting on \shiftAdaptMoves{} of decisions, more than the best fixed threshold chosen in hindsight (\shiftOracleMoves{}). Fig.~\ref{fig:worst} shows the same pattern across targets and datasets, and Fig.~\ref{fig:oneuser} shows a typical recovery. With new arm positions, the default threshold misfired on \armFixedMean{} of decisions and a conformal threshold calibrated in the training position gave \armBeforeTen{} at a 10\% target, while the adaptive threshold gave \armAdaptTenMean{} (worst \armAdaptTenWorst{}) and acted on \armAdaptTenMoves{} of decisions.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/one_user.pdf}
+\caption{Running misfire rate of electrode-shift participant \examplePerson{}, the worst user under the conformal threshold calibrated before the shift, at a 5\% target (dashed).}
+\label{fig:oneuser}
+\end{figure}
+
+Across all \nPeople{} users, targets and step sizes, the bound of Proposition~1 was violated in \nViol{} of \nRuns{} runs. At a 5\% target the adaptive threshold acted more often than the conformal threshold calibrated after the change (Wilcoxon signed-rank, $p<\wilcoxP$) and than the hindsight-best fixed threshold ($p<\wilcoxOracleP$). With feedback on a random 10\% of decisions it met all 6 targets on average for arm position, UCI and 3DC, but \shiftSparseKept{} after the electrode shift, where the starting threshold was far too low to recover from with few labels.
+
+\subsection{Acting on motions, and who goes over}
+Three 3DC gestures close the hand (power, chuck and pinch grip). Summing their probabilities and rejecting on motions rather than gestures, calibrated identically, let user-specific models perform the grip motion on \gripMotion{} of grip decisions instead of \gripGesture{} at a 7.5\% target, at an unchanged misfire rate (\gripMisM{}); it did not help the weak shared 3DC model. With shared models, users above target were those the shared model fit poorly (Spearman $\rho=\rhoAccUci$ between accuracy and misfire rate, UCI), not users with poor signals: UCI participant~22 reached \pTwentyTwoShared{} accuracy with the shared model and \pTwentyTwoOwn{} with their own. The misfire rate on the calibration recording predicted the test misfire rate ($\rho=\rhoCalUci$, $p=\pCalUci$, UCI; $\rho=\rhoCalTdc$, $p\pCalTdc$, 3DC), offering an early warning for users who need retraining.
+
+\section{Discussion}
+
+A threshold chosen from a target makes the controller's behavior predictable in the units that matter to users and clinicians. The conformal threshold suits a setting where previous users were recorded under the conditions of use; it needs no feedback, but its guarantee is an average over people and breaks when conditions change after calibration. The adaptive threshold protects each user under any change but needs feedback on whether decisions were correct. Cued calibration tasks and games provide such feedback; in daily use it would have to come from implicit signals, such as the user undoing a movement, which we leave open. Starting the adaptive threshold from the conformal one combines the two.
+
+\emph{Limitations.} All results are offline: recorded EMG replayed through the controller, without a user adapting in closed loop and without a physical hand. Participants were able-bodied, and calibration and test sessions were recorded on the same day. Every misfire counts equally, although opening during a grasp is worse than a wrong wrist rotation; a weighted loss fits the same framework with a larger bound. With few feedback labels after a large change, the adaptive threshold recovers slowly.
+
+\section{Conclusion}
+
+Choosing rejection thresholds from a target misfire rate, by conformal calibration across people or by online adaptation, turns a confidence number into a guarantee a user can rely on, with no change to features, classifiers or the decision rule. On \nPeople{} people across four datasets, thresholds tuned on training data never met their targets with shared models, conformal thresholds met them on average, and adaptive thresholds held each user at the target through an electrode shift while acting more often than any fixed threshold that meets the target. Future work includes multi-day and amputee data, implicit feedback, and real-time evaluation. Code: \url{https://github.com/kishoren18-hue/steadyhand} (DOI 10.5281/zenodo.23990312).
+
+\section*{Acknowledgment}
+Claude (Anthropic), an AI system, was used to write analysis and experiment code, generate figures and tables, and draft the text of all sections. The author designed the study questions, reviewed and verified every result, revised the text, and takes responsibility for the content. We thank the authors of LibEMG and of the four datasets for making them public.
+
+\begin{thebibliography}{99}
+\footnotesize
+\bibitem{scheme2013} E.~Scheme, B.~Hudgins, and K.~Englehart, ``Confidence-based rejection for improved pattern recognition myoelectric control,'' \emph{IEEE Trans. Biomed. Eng.}, vol.~60, no.~6, 2013, doi:10.1109/TBME.2013.2238939.
+\bibitem{robertson2019} J.~W. Robertson, K.~B. Englehart, and E.~J. Scheme, ``Effects of confidence-based rejection on usability and error in pattern recognition-based myoelectric control,'' \emph{IEEE J. Biomed. Health Inform.}, vol.~23, no.~5, pp.~2002--2008, 2019, doi:10.1109/JBHI.2018.2878907.
+\bibitem{eddy2023} E.~Eddy, E.~Campbell, A.~Phinyomark, S.~Bateman, and E.~Scheme, ``LibEMG: An open source library to facilitate the exploration of myoelectric control,'' \emph{IEEE Access}, vol.~11, 2023, doi:10.1109/ACCESS.2023.3304544.
+\bibitem{yang2024} J.~Yang, M.~Soh, V.~Lieu, D.~J. Weber, and Z.~Erickson, ``EMGBench: Benchmarking out-of-distribution generalization and adaptation for electromyography,'' in \emph{Adv. Neural Inf. Process. Syst.}, 2024.
+\bibitem{campbell2024} E.~Campbell, E.~Eddy, S.~Bateman, U.~C\^ot\'e-Allard, and E.~Scheme, ``Context-informed incremental learning improves both the performance and resilience of myoelectric control,'' \emph{J. NeuroEng. Rehabil.}, vol.~21, 2024.
+\bibitem{fougner2011} A.~Fougner, E.~Scheme, A.~D.~C. Chan, K.~Englehart, and \O.~Stavdahl, ``Resolving the limb position effect in myoelectric pattern recognition,'' \emph{IEEE Trans. Neural Syst. Rehabil. Eng.}, vol.~19, no.~6, 2011.
+\bibitem{angelopoulos2024} A.~N. Angelopoulos, S.~Bates, A.~Fisch, L.~Lei, and T.~Schuster, ``Conformal risk control,'' in \emph{Proc. Int. Conf. Learn. Represent.}, 2024.
+\bibitem{gibbs2021} I.~Gibbs and E.~Cand\`es, ``Adaptive conformal inference under distribution shift,'' in \emph{Adv. Neural Inf. Process. Syst.}, 2021.
+\bibitem{angelopoulos2023pid} A.~N. Angelopoulos, E.~J. Cand\`es, and R.~J. Tibshirani, ``Conformal PID control for time series prediction,'' in \emph{Adv. Neural Inf. Process. Syst.}, 2023.
+\bibitem{tam2024} S.~Tam \emph{et al.}, ``Towards robust and interpretable EMG-based hand gesture recognition using deep metric meta learning,'' arXiv:2404.15360, 2024.
+\bibitem{aydogan2026} Y.~Ayd\u{o}\u{g}an and \.{I}.~Cant\"urk, ``Uncertainty-aware single-channel surface EMG classification for low-resource hand gesture recognition: A subject-independent evaluation,'' \emph{Med. Biol. Eng. Comput.}, 2026, doi:10.1007/s11517-026-03704-y.
+\bibitem{vovk2005} V.~Vovk, A.~Gammerman, and G.~Shafer, \emph{Algorithmic Learning in a Random World}. New York: Springer, 2005.
+\bibitem{krilova2018} N.~Krilova, I.~Kastalskiy, V.~Kazantsev, V.~Makarov, and S.~Lobov, ``EMG data for gestures,'' UCI Machine Learning Repository, 2018, doi:10.24432/C5ZP5C.
+\bibitem{coteallard2019} U.~C\^ot\'e-Allard \emph{et al.}, ``Deep learning for electromyographic hand gesture signal classification using transfer learning,'' \emph{IEEE Trans. Neural Syst. Rehabil. Eng.}, vol.~27, no.~4, 2019.
+\end{thebibliography}
+
+\end{document}

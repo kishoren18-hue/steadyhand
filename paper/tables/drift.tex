@@ -1,0 +1,15 @@
+\begin{tabular}{@{}lrrrrrrrrrrrr@{}}
+\toprule
+ & \multicolumn{3}{c}{Electrode shift (21)} & \multicolumn{3}{c}{Arm position (12)} & \multicolumn{3}{c}{UCI, later session (36)} & \multicolumn{3}{c}{3DC, later session (22)} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
+Cutoff & Mean & Worst & Moves & Mean & Worst & Moves & Mean & Worst & Moves & Mean & Worst & Moves \\
+\midrule
+Fixed 0.90 (LibEMG) & 46.1 & 82.1 & 89 & 20.5 & 33.7 & 92 & 10.8 & 39.1 & 98 & 10.7 & 25.0 & 83 \\
+Personal & 44.3 & 87.6 & 85 & 23.4 & 37.7 & 97 & 5.0 & 24.9 & 76 & 7.3 & 16.1 & 74 \\
+Conformal, before change & 12.0 & 37.0 & 26 & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.6 & 3.4 & 24 \\
+Conformal, after change & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.5 & 3.3 & 22 \\
+Adaptive (ours) & 4.9 & 5.0 & 31 & 4.0 & 5.0 & 69 & 3.7 & 5.2 & 83 & 3.9 & 4.7 & 71 \\
+Adaptive, 10\% feedback & 5.3 & 7.9 & 19 & 4.6 & 5.3 & 60 & 3.6 & 9.2 & 65 & 3.5 & 4.8 & 59 \\
+Best fixed, hindsight & 3.3 & 5.0 & 14 & 4.9 & 5.0 & 56 & 3.0 & 5.0 & 65 & 5.0 & 5.0 & 67 \\
+\bottomrule
+\end{tabular}
