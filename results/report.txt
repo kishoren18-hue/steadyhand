@@ -1,0 +1,147 @@
+
+==================== 3dc_LDA
+accuracy, pers-none: 41.0%
+accuracy, own-none: 85.6%
+accuracy, shared model, no rejection: 33.3%
+
+Main results
+            method target  mean worst  over moves
+             fixed   none  5.2% 26.5%   n/a 14.8%
+             tuned   3.0%  6.6% 35.1% 11/22 17.6%
+             tuned   5.0% 10.4% 54.5% 11/22 23.7%
+             tuned  10.0% 18.3% 76.6% 16/22 35.7%
+          personal   3.0%  1.9%  4.5%  4/22 10.2%
+          personal   5.0%  3.4%  6.7%  5/22 13.6%
+          personal  10.0%  7.6% 12.3%  3/22 21.3%
+         conformal   3.0%  0.0%  0.0%  0/22  0.0%
+         conformal   5.0%  0.5%  5.2%  1/22  2.1%
+         conformal  10.0%  5.3% 26.9%  4/22 15.0%
+conformal+personal   3.0%  0.0%  0.0%  0/22  0.0%
+conformal+personal   5.0%  0.5%  5.2%  1/22  2.1%
+conformal+personal  10.0%  3.4% 10.6%  1/22 12.6%
+    pers-conformal   3.0%  0.0%  0.0%  0/22  0.0%
+    pers-conformal   5.0%  0.5%  4.0%  0/22  4.0%
+    pers-conformal  10.0%  5.7% 25.6%  4/22 21.2%
+     own-conformal   3.0%  0.0%  0.0%  0/22  0.0%
+     own-conformal   5.0%  0.6%  6.0%  1/22 31.6%
+     own-conformal  10.0%  5.7% 17.4%  2/22 81.8%
+
+Targets kept on average (mean misfire <= target):
+  tuned                0/6
+  personal             6/6
+  conformal            6/6
+  conformal+personal   6/6
+  pers-conformal       6/6
+  own-conformal        6/6
+
+Majority voting (k = 5)
+                 method target mean worst over moves
+                  fixed   none 5.1% 26.5%  n/a 14.6%
+        conformal-naive   5.0% 0.4%  5.3% 1/22  2.0%
+        conformal-naive  10.0% 5.1% 26.8% 4/22 14.8%
+         conformal-vote   5.0% 0.5%  5.4% 1/22  2.1%
+         conformal-vote  10.0% 5.2% 26.8% 4/22 14.9%
+conformal-vote+personal   5.0% 0.5%  5.4% 1/22  2.1%
+conformal-vote+personal  10.0% 3.3% 10.6% 1/22 12.5%
+  conformal-naive          kept 6/6
+  conformal-vote           kept 6/6
+  conformal-vote+personal  kept 6/6
+
+Who goes over (5% target, conformal):
+  Spearman(shared-model accuracy, misfire) = -0.13 (p=0.5593)
+  Spearman(calibration-session misfire, test misfire) = 0.73 (p=0.0001)
+  person 15: shared-model accuracy 19.8%, own-model accuracy 90.8%, misfire at conformal cutoff 5.2%
+  person 20: shared-model accuracy 44.2%, own-model accuracy 88.7%, misfire at conformal cutoff 2.0%
+  person  1: shared-model accuracy 11.3%, own-model accuracy 91.3%, misfire at conformal cutoff 1.0%
+  person 22: shared-model accuracy 40.9%, own-model accuracy 89.0%, misfire at conformal cutoff 0.6%
+  own-model accuracy across people: median 87.2%, min 75.8%
+
+==================== uci_LDA
+accuracy, pers-none: 77.9%
+accuracy, own-none: 93.6%
+accuracy, shared model, no rejection: 76.8%
+
+Main results
+            method target  mean worst  over  moves
+             fixed   none  2.8% 24.9%   n/a  49.3%
+             tuned   3.0%  3.5% 27.3% 13/36  53.4%
+             tuned   5.0%  6.3% 32.7% 15/36  64.1%
+             tuned  10.0% 12.9% 45.9% 19/36  81.5%
+          personal   3.0%  3.8% 21.0% 15/36  58.7%
+          personal   5.0%  5.9% 28.9% 19/36  66.4%
+          personal  10.0% 10.7% 36.3% 21/36  78.6%
+         conformal   3.0%  0.3% 10.1%  1/36  16.5%
+         conformal   5.0%  2.1% 23.1%  4/36  42.3%
+         conformal  10.0%  6.7% 32.7%  9/36  65.4%
+conformal+personal   3.0%  0.2%  7.2%  1/36  16.4%
+conformal+personal   5.0%  1.5%  9.2%  4/36  40.5%
+conformal+personal  10.0%  5.3% 14.9%  9/36  62.2%
+    pers-conformal   3.0%  0.3% 10.3%  1/36  19.4%
+    pers-conformal   5.0%  2.3% 24.6%  6/36  46.9%
+    pers-conformal  10.0%  7.4% 32.7% 11/36  70.0%
+     own-conformal   3.0%  0.3%  3.1%  1/36  61.5%
+     own-conformal   5.0%  2.4% 10.7%  5/36  88.3%
+     own-conformal  10.0%  6.4% 22.4%  5/36 100.0%
+
+Targets kept on average (mean misfire <= target):
+  tuned                0/6
+  personal             2/6
+  conformal            6/6
+  conformal+personal   6/6
+  pers-conformal       6/6
+  own-conformal        6/6
+
+Majority voting (k = 5)
+                 method target mean worst  over moves
+                  fixed   none 2.5% 25.5%   n/a 49.1%
+        conformal-naive   5.0% 1.9% 23.4%  3/36 42.0%
+        conformal-naive  10.0% 5.9% 30.6%  9/36 65.0%
+         conformal-vote   5.0% 2.1% 24.0%  5/36 44.1%
+         conformal-vote  10.0% 6.7% 30.6% 11/36 67.2%
+conformal-vote+personal   5.0% 1.5% 10.1%  5/36 42.3%
+conformal-vote+personal  10.0% 5.4% 16.2%  9/36 63.9%
+  conformal-naive          kept 6/6
+  conformal-vote           kept 6/6
+  conformal-vote+personal  kept 6/6
+
+Who goes over (5% target, conformal):
+  Spearman(shared-model accuracy, misfire) = -0.60 (p=0.0001)
+  Spearman(calibration-session misfire, test misfire) = 0.43 (p=0.0082)
+  person 22: shared-model accuracy 39.6%, own-model accuracy 98.5%, misfire at conformal cutoff 23.1%
+  person 15: shared-model accuracy 67.5%, own-model accuracy 96.0%, misfire at conformal cutoff 16.7%
+  person  7: shared-model accuracy 29.9%, own-model accuracy 96.1%, misfire at conformal cutoff 7.2%
+  person  8: shared-model accuracy 76.1%, own-model accuracy 91.4%, misfire at conformal cutoff 5.8%
+  own-model accuracy across people: median 95.2%, min 77.6%
+
+==================== uci_RF
+accuracy, shared model, no rejection: 83.3%
+
+Main results
+            method target  mean worst  over  moves
+             fixed   none  0.6%  5.8%   n/a  40.7%
+             tuned   3.0% 16.7% 55.0% 32/36 100.0%
+             tuned   5.0% 16.7% 55.0% 29/36 100.0%
+             tuned  10.0% 16.7% 55.0% 26/36 100.0%
+          personal   3.0%  3.9% 19.2% 17/36  69.3%
+          personal   5.0%  5.4% 19.2% 17/36  74.4%
+          personal  10.0%  8.8% 33.4% 12/36  83.5%
+         conformal   3.0%  0.2%  2.2%  0/36  27.8%
+         conformal   5.0%  2.1% 17.3%  5/36  55.0%
+         conformal  10.0%  6.9% 28.5%  9/36  77.0%
+conformal+personal   3.0%  0.2%  2.2%  0/36  27.8%
+conformal+personal   5.0%  1.8% 17.3%  3/36  54.1%
+conformal+personal  10.0%  5.6% 28.5%  4/36  73.7%
+
+Targets kept on average (mean misfire <= target):
+  tuned                1/6
+  personal             4/6
+  conformal            6/6
+  conformal+personal   6/6
+
+Who goes over (5% target, conformal):
+  Spearman(shared-model accuracy, misfire) = -0.79 (p=0.0000)
+  Spearman(calibration-session misfire, test misfire) = 0.54 (p=0.0007)
+  person 35: shared-model accuracy 66.6%, misfire at conformal cutoff 17.3%
+  person 30: shared-model accuracy 63.5%, misfire at conformal cutoff 8.6%
+  person  1: shared-model accuracy 76.8%, misfire at conformal cutoff 7.8%
+  person 12: shared-model accuracy 80.8%, misfire at conformal cutoff 7.6%

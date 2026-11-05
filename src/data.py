@@ -1,80 +1,105 @@
-"""Load the UCI "EMG Data for Gestures" dataset and turn it into LibEMG features.
+"""Load EMG datasets and turn them into LibEMG features.
 
-Dataset: Krilova, Kastalskiy, Kazantsev, Makarov & Lobov (2018), UCI Machine
-Learning Repository, https://doi.org/10.24432/C5ZP5C. 36 people, 8-channel Myo
-armband, two recording series per person.
+Every dataset comes out in the same shape, one row per 250 ms window:
+  X        features (LibEMG Hudgins time-domain group: MAV, ZC, SSC, WL per channel)
+  y        gesture label, 0..K-1
+  subject  person id
+  series   1 = calibration session (the new user's short guided recording)
+           2 = test session (what every method is scored on)
+  segment  id of the continuous recording the window came from; windows in the
+           same segment are consecutive in time (majority voting needs this)
 
-Windowing and features both come from LibEMG (Eddy et al., IEEE Access 2023):
-  - libemg.utils.get_windows
-  - libemg.feature_extractor.FeatureExtractor, Hudgins time-domain group (HTD):
-    mean absolute value, zero crossings, slope sign changes, waveform length.
+Datasets
+  uci  UCI "EMG Data for Gestures" (Krilova et al., 2018), doi:10.24432/C5ZP5C.
+       36 people, 8-channel Myo armband, 6 gestures, two series per person.
+  3dc  3DC dataset (Cote-Allard et al., IEEE TNSRE 2019; Frontiers 2020).
+       22 people, 10-channel 3DC armband, 11 gestures, 4 training + 4 test
+       repetitions per gesture recorded after a 5-minute break.
+Both are sampled at 1 kHz, so 250 samples = 250 ms and 50 samples = 50 ms.
 """
 from pathlib import Path
+import re
 import numpy as np
 import pandas as pd
 from libemg.utils import get_windows
 from libemg.feature_extractor import FeatureExtractor
 
-# UCI labels 1-6. Label 0 = unmarked pause, label 7 = extended palm (not every
-# subject performed it), so both are dropped.
-GESTURES = {1: "rest", 2: "fist", 3: "wrist flexion", 4: "wrist extension",
-            5: "radial deviation", 6: "ulnar deviation"}
-WINDOW = 250      # samples, ~250 ms at ~1 kHz
-INCREMENT = 50    # samples, ~50 ms step (a new decision every 50 ms)
+WINDOW = 250
+INCREMENT = 50
+
+GESTURES = {
+    "uci": ["rest", "fist", "wrist flexion", "wrist extension",
+            "radial deviation", "ulnar deviation"],
+    "3dc": ["rest", "radial deviation", "wrist flexion", "ulnar deviation",
+            "wrist extension", "supination", "pronation", "power grip",
+            "open hand", "chuck grip", "pinch grip"],
+}
 
 
-def _segments(labels):
+def _runs(labels):
     """Yield (start, end, label) for each run of identical labels."""
     change = np.flatnonzero(np.diff(labels)) + 1
-    starts = np.r_[0, change]
-    ends = np.r_[change, len(labels)]
-    for s, e in zip(starts, ends):
+    for s, e in zip(np.r_[0, change], np.r_[change, len(labels)]):
         yield s, e, labels[s]
 
 
-def load_subject(subject_dir):
-    """Return windows, labels and series index for one person.
-
-    Windows never cross a label boundary, so every window belongs to exactly
-    one gesture.
-    """
-    files = sorted(Path(subject_dir).glob("*_raw_data_*.txt"))
-    win_list, lab_list, ser_list = [], [], []
-    for f in files:
-        series = int(f.name.split("_")[0])          # 1 or 2
+def _uci_recordings(subject_dir):
+    """UCI: one file per series; each labeled gesture hold is one segment.
+    Label 0 (unmarked pause) and 7 (extended palm, not done by everyone) are dropped."""
+    for f in sorted(Path(subject_dir).glob("*_raw_data_*.txt")):
+        series = int(f.name.split("_")[0])
         df = pd.read_csv(f, sep="\t")
         emg = df[[f"channel{i}" for i in range(1, 9)]].to_numpy()
-        labels = df["class"].to_numpy()
-        for s, e, lab in _segments(labels):
-            if lab not in GESTURES or e - s < WINDOW:
-                continue
-            w = get_windows(emg[s:e], WINDOW, INCREMENT)
-            win_list.append(w)
-            lab_list.append(np.full(len(w), lab - 1))   # 0..5 for LibEMG
-            ser_list.append(np.full(len(w), series))
-    return (np.concatenate(win_list), np.concatenate(lab_list),
-            np.concatenate(ser_list))
+        lab = df["class"].to_numpy()
+        for s, e, g in _runs(lab):
+            if 1 <= g <= 6:
+                yield emg[s:e], int(g) - 1, series
 
 
-def build_features(data_root, cache="features.npz"):
-    """Extract HTD features for all 36 people, cached to disk."""
+def _3dc_recordings(subject_dir):
+    """3DC: file 3dc_EMG_gesture_<rep>_<class>.txt; train/ = series 1, test/ = series 2."""
+    for part, series in (("train", 1), ("test", 2)):
+        for f in sorted((Path(subject_dir) / part / "EMG").glob("3dc_EMG_gesture_*.txt")):
+            rep, cls = map(int, re.findall(r"gesture_(\d+)_(\d+)", f.name)[0])
+            emg = np.loadtxt(f, delimiter=",")
+            yield emg, cls, series
+
+
+def _subjects(dataset, root):
+    root = Path(root)
+    if dataset == "uci":
+        dirs = [p for p in root.iterdir() if p.is_dir() and p.name.isdigit()]
+        return sorted((int(p.name), p) for p in dirs)
+    if dataset == "3dc":
+        dirs = [p for p in root.iterdir() if p.name.startswith("Participant")]
+        return sorted((int(p.name.replace("Participant", "")), p) for p in dirs)
+    raise ValueError(dataset)
+
+
+def build_features(dataset, root, cache):
+    """Extract features for every window of a dataset (cached to `cache`)."""
     cache = Path(cache)
     if cache.exists():
         d = np.load(cache)
-        return d["X"], d["y"].astype(int), d["subject"], d["series"].astype(int)
+        return (d["X"], d["y"].astype(int), d["subject"].astype(int),
+                d["series"].astype(int), d["segment"].astype(int))
     fe = FeatureExtractor()
     feats = fe.get_feature_groups()["HTD"]
-    X, y, subj, ser = [], [], [], []
-    subject_dirs = sorted(p for p in Path(data_root).iterdir()
-                          if p.is_dir() and p.name.isdigit())
-    for d in subject_dirs:
-        w, lab, s = load_subject(d)
-        X.append(fe.extract_features(feats, w, array=True))
-        y.append(lab)
-        subj.append(np.full(len(lab), int(d.name)))
-        ser.append(s)
-        print(f"subject {d.name}: {len(lab)} windows")
-    X, y = np.concatenate(X), np.concatenate(y).astype(int)
-    subj, ser = np.concatenate(subj), np.concatenate(ser)
-    np.savez_compressed(cache, X=X, y=y, subject=subj, series=ser)
-    return X, y, subj, ser
+    recs = _uci_recordings if dataset == "uci" else _3dc_recordings
+    X, y, subj, ser, seg = [], [], [], [], []
+    seg_id = 0
+    for sid, d in _subjects(dataset, root):
+        n0 = len(y)
+        for emg, g, series in recs(d):
+            if len(emg) < WINDOW:
+                continue
+            w = get_windows(emg, WINDOW, INCREMENT)
+            X.append(fe.extract_features(feats, w, array=True))
+            n = len(w)
+            y += [g] * n; subj += [sid] * n; ser += [series] * n; seg += [seg_id] * n
+            seg_id += 1
+        print(f"{dataset} subject {sid}: {len(y) - n0} windows")
+    out = dict(X=np.concatenate(X), y=np.array(y), subject=np.array(subj),
+               series=np.array(ser), segment=np.array(seg))
+    np.savez_compressed(cache, **out)
+    return out["X"], out["y"], out["subject"], out["series"], out["segment"]
