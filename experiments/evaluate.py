@@ -32,8 +32,8 @@ Personalized model (--personalize)
   pers-none, own-none the same models with no rejection (accuracy reference)
 
 Usage
-  python src/evaluate.py --dataset uci --data data/uci
-  python src/evaluate.py --dataset 3dc --data data/3dc --vote 5 --personalize
+  python experiments/evaluate.py --dataset uci --data data/uci
+  python experiments/evaluate.py --dataset 3dc --data data/3dc --vote 5 --personalize
 """
 import argparse, json, sys, time
 from pathlib import Path
@@ -42,9 +42,15 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
 from data import build_features, GESTURES
-from methods import (Model, misfire_curve, threshold_fixed, threshold_empirical,
-                     threshold_conformal, crc_threshold, out_of_person_scores,
-                     vote_predict, voted_misfire_curve, candidate_thresholds)
+from common import Model, out_of_person_scores
+from steadyhand.risk import misfire_curve, vote_predict, voted_misfire_curve
+from steadyhand.cutoffs import crc_threshold, personal_cutoff, ConformalCutoff, voting_grid
+
+threshold_empirical = personal_cutoff
+
+
+def threshold_conformal(per_user, alpha):
+    return ConformalCutoff(target=alpha).fit(per_user).threshold_
 
 ALPHAS = [0.03, 0.05, 0.075, 0.10, 0.15, 0.20]
 
@@ -57,12 +63,7 @@ def score(out, y):
                 acc_when_active=float(1 - wrong[act].mean() / 1) if act.any() else np.nan)
 
 
-def vote_grid(per_user):
-    """Thresholds to evaluate voted curves on: every 0.1% quantile of the
-    calibration confidences plus fine steps near 1, where LDA's cutoffs land."""
-    c = np.concatenate([u["conf"] for u in per_user])
-    q = np.quantile(c, np.linspace(0, 1, 1001))
-    return np.unique(np.r_[0.0, q, 1 - np.logspace(-6, -1, 200), 0.9, 1.0])
+vote_grid = voting_grid
 
 
 def personalized_scores(X, y, subj, series, segment, cal_people, kind):

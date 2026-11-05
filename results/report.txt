@@ -145,3 +145,66 @@ Who goes over (5% target, conformal):
   person 30: shared-model accuracy 63.5%, misfire at conformal cutoff 8.6%
   person  1: shared-model accuracy 76.8%, misfire at conformal cutoff 7.8%
   person 12: shared-model accuracy 80.8%, misfire at conformal cutoff 7.6%
+
+==================== drift: electrode shift (21 people, own models)
+own-model accuracy after the change: 47.2%
+fixed 0.90: mean 46.1%, worst 82.1%, moves 89.2%
+  personal                   kept 0/6 | 5.0%: mean 44.3% worst 87.6% over 21/21 moves 84.5% | 10.0%: mean 50.2% worst 92.4% over 21/21 moves 95.7%
+  conformal-before           kept 1/6 | 5.0%: mean 12.0% worst 37.0% over 12/21 moves 25.6% | 10.0%: mean 46.8% worst 82.6% over 21/21 moves 90.5%
+  conformal-before+personal  kept 1/6 | 5.0%: mean 12.0% worst 37.0% over 12/21 moves 25.6% | 10.0%: mean 46.3% worst 82.6% over 21/21 moves 89.5%
+  conformal-after            kept 6/6 | 5.0%: mean 0.0% worst 0.0% over 0/21 moves 0.0% | 10.0%: mean 4.5% worst 29.9% over 5/21 moves 8.2%
+  adaptive                   kept 5/6 | 5.0%: mean 4.9% worst 5.0% over 3/21 moves 31.5% | 10.0%: mean 9.9% worst 10.5% over 13/21 moves 43.0%
+  adaptive-10%               kept 0/6 | 5.0%: mean 5.3% worst 7.9% over 11/21 moves 19.2% | 10.0%: mean 14.3% worst 17.8% over 21/21 moves 39.0%
+  oracle-static              kept 6/6 | 5.0%: mean 3.3% worst 5.0% over 0/21 moves 14.0% | 10.0%: mean 7.6% worst 10.0% over 0/21 moves 23.6%
+  adaptive guarantee violations: 0 of 315 runs
+
+==================== drift: arm position (12 people, own models)
+own-model accuracy after the change: 74.4%
+fixed 0.90: mean 20.5%, worst 33.7%, moves 92.0%
+  personal                   kept 0/6 | 5.0%: mean 23.4% worst 37.7% over 11/12 moves 96.5% | 10.0%: mean 25.3% worst 38.7% over 10/12 moves 99.6%
+  conformal-before           kept 3/6 | 5.0%: mean 0.0% worst 0.0% over 0/12 moves 0.0% | 10.0%: mean 17.8% worst 33.2% over 10/12 moves 87.4%
+  conformal-before+personal  kept 3/6 | 5.0%: mean 0.0% worst 0.0% over 0/12 moves 0.0% | 10.0%: mean 17.8% worst 33.2% over 10/12 moves 87.4%
+  conformal-after            kept 6/6 | 5.0%: mean 0.0% worst 0.0% over 0/12 moves 0.0% | 10.0%: mean 2.0% worst 6.4% over 0/12 moves 35.5%
+  adaptive                   kept 6/6 | 5.0%: mean 4.0% worst 5.0% over 0/12 moves 69.1% | 10.0%: mean 6.3% worst 8.8% over 0/12 moves 74.9%
+  adaptive-10%               kept 6/6 | 5.0%: mean 4.6% worst 5.3% over 4/12 moves 60.4% | 10.0%: mean 9.0% worst 10.8% over 5/12 moves 73.0%
+  oracle-static              kept 6/6 | 5.0%: mean 4.9% worst 5.0% over 0/12 moves 56.4% | 10.0%: mean 9.1% worst 10.0% over 0/12 moves 70.5%
+  adaptive guarantee violations: 0 of 180 runs
+
+==================== drift: UCI later session (36 people, own models)
+own-model accuracy after the change: 88.4%
+fixed 0.90: mean 10.8%, worst 39.1%, moves 98.4%
+  personal                   kept 4/6 | 5.0%: mean 5.0% worst 24.9% over 16/36 moves 76.0% | 10.0%: mean 7.3% worst 30.0% over 8/36 moves 83.9%
+  conformal-before           kept 6/6 | 5.0%: mean 0.0% worst 0.0% over 0/36 moves 0.0% | 10.0%: mean 7.9% worst 30.3% over 10/36 moves 91.7%
+  conformal-before+personal  kept 6/6 | 5.0%: mean 0.0% worst 0.0% over 0/36 moves 0.0% | 10.0%: mean 5.8% worst 30.0% over 5/36 moves 80.3%
+  conformal-after            kept 6/6 | 5.0%: mean 0.0% worst 0.0% over 0/36 moves 0.0% | 10.0%: mean 7.6% worst 31.7% over 9/36 moves 90.7%
+  adaptive                   kept 6/6 | 5.0%: mean 3.7% worst 5.2% over 3/36 moves 82.8% | 10.0%: mean 6.5% worst 10.5% over 4/36 moves 90.8%
+  adaptive-10%               kept 6/6 | 5.0%: mean 3.6% worst 9.2% over 9/36 moves 65.5% | 10.0%: mean 7.3% worst 28.6% over 7/36 moves 88.9%
+  oracle-static              kept 6/6 | 5.0%: mean 3.0% worst 5.0% over 0/36 moves 65.0% | 10.0%: mean 6.4% worst 10.0% over 0/36 moves 84.2%
+  adaptive guarantee violations: 0 of 540 runs
+
+==================== drift: 3DC later session (22 people, own models)
+own-model accuracy after the change: 80.0%
+fixed 0.90: mean 10.7%, worst 25.0%, moves 82.6%
+  personal                   kept 1/6 | 5.0%: mean 7.3% worst 16.1% over 14/22 moves 73.5% | 10.0%: mean 13.0% worst 23.1% over 15/22 moves 87.1%
+  conformal-before           kept 6/6 | 5.0%: mean 0.6% worst 3.4% over 0/22 moves 24.3% | 10.0%: mean 7.4% worst 20.4% over 4/22 moves 74.0%
+  conformal-before+personal  kept 6/6 | 5.0%: mean 0.6% worst 3.4% over 0/22 moves 24.3% | 10.0%: mean 6.9% worst 20.4% over 3/22 moves 72.6%
+  conformal-after            kept 6/6 | 5.0%: mean 0.5% worst 3.3% over 0/22 moves 22.1% | 10.0%: mean 5.8% worst 18.4% over 4/22 moves 68.4%
+  adaptive                   kept 6/6 | 5.0%: mean 3.9% worst 4.7% over 0/22 moves 71.4% | 10.0%: mean 5.9% worst 8.2% over 0/22 moves 78.4%
+  adaptive-10%               kept 6/6 | 5.0%: mean 3.5% worst 4.8% over 0/22 moves 58.7% | 10.0%: mean 8.7% worst 10.9% over 6/22 moves 79.0%
+  oracle-static              kept 6/6 | 5.0%: mean 5.0% worst 5.0% over 0/22 moves 66.7% | 10.0%: mean 9.8% worst 10.0% over 0/22 moves 81.1%
+  adaptive guarantee violations: 0 of 330 runs
+
+==================== motion-level controller (3DC)
+ setup controller  alpha  mean  worst  moves  grip_moves
+   own    gesture  0.050 0.006  0.034  0.246       0.163
+   own    gesture  0.075 0.043  0.120  0.654       0.447
+   own    gesture  0.100 0.075  0.186  0.787       0.630
+   own     motion  0.050 0.006  0.034  0.263       0.226
+   own     motion  0.075 0.043  0.117  0.710       0.692
+   own     motion  0.100 0.074  0.178  0.830       0.819
+shared    gesture  0.050 0.004  0.058  0.013       0.000
+shared    gesture  0.075 0.029  0.121  0.088       0.002
+shared    gesture  0.100 0.054  0.269  0.143       0.006
+shared     motion  0.050 0.004  0.058  0.012       0.000
+shared     motion  0.075 0.029  0.120  0.088       0.002
+shared     motion  0.100 0.053  0.266  0.140       0.009

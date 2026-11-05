@@ -1,6 +1,6 @@
 """Print every table and number used in the paper, straight from results/.
 
-  python src/report.py
+  python experiments/report.py
 """
 from pathlib import Path
 import numpy as np
@@ -83,3 +83,38 @@ for f in sorted(R.glob("*_per_person.csv")):
                   f"{extra}misfire at conformal cutoff {pct(r.test_misfire_at_conformal)}")
         if len(own):
             print(f"  own-model accuracy across people: median {pct(own.median())}, min {pct(own.min())}")
+
+
+# ---------------------------------------------------------------- drift and motion-level
+NAMES = {"ciil": "electrode shift", "limbpos": "arm position", "uci": "UCI later session",
+         "3dc": "3DC later session"}
+for d, name in NAMES.items():
+    f = R / f"drift_{d}.csv"
+    if not f.exists():
+        continue
+    df = pd.read_csv(f)
+    print(f"\n==================== drift: {name} ({df.person.nunique()} people, own models)")
+    print(f"own-model accuracy after the change: {pct(df.groupby('person').accuracy.first().mean())}")
+    fx = df[df.method == "fixed"]
+    print(f"fixed 0.90: mean {pct(fx.misfire.mean())}, worst {pct(fx.misfire.max())}, moves {pct(fx.active.mean())}")
+    for m in ["personal", "conformal-before", "conformal-before+personal", "conformal-after",
+              "adaptive", "adaptive-10%", "oracle-static"]:
+        g = df[df.method == m]
+        kept = int((g.groupby("alpha").misfire.mean() <= g.groupby("alpha").misfire.mean().index + 1e-12).sum())
+        parts = []
+        for a in (0.05, 0.10):
+            h = g[np.isclose(g.alpha, a)]
+            parts.append(f"{pct(a)}: mean {pct(h.misfire.mean())} worst {pct(h.misfire.max())} "
+                         f"over {(h.misfire > a).sum()}/{len(h)} moves {pct(h.active.mean())}")
+        print(f"  {m:26s} kept {kept}/6 | " + " | ".join(parts))
+    ad = df[df.method.str.startswith("adaptive")]
+    print(f"  adaptive guarantee violations: {int((ad.bound_misfire > ad.bound + 1e-12).sum())} of {len(ad)} runs")
+
+f = R / "groups_3dc.csv"
+if f.exists():
+    df = pd.read_csv(f)
+    print("\n==================== motion-level controller (3DC)")
+    s = df.groupby(["setup", "controller", "alpha"]).agg(
+        mean=("misfire", "mean"), worst=("misfire", "max"), moves=("active", "mean"),
+        grip_moves=("grip_moves", "mean")).reset_index()
+    print(s[s.alpha.isin([0.05, 0.075, 0.10])].round(3).to_string(index=False))

@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from methods import (misfire_curve, crc_threshold, candidate_thresholds,
-                     vote_predict, voted_misfire_curve)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from steadyhand.risk import (misfire_curve, candidate_thresholds, vote_predict,
+                             voted_misfire_curve)
+from steadyhand.cutoffs import crc_threshold
 from libemg.emg_predictor import EMGClassifier
 
 RNG = np.random.default_rng(0)

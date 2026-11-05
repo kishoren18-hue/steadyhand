@@ -1,0 +1,41 @@
+cff-version: 1.2.0
+message: "If you use SteadyHand, please cite it as below."
+title: "SteadyHand: rejection cutoffs for myoelectric control with misfire-rate guarantees"
+authors:
+  - family-names: Nuthalapati
+    given-names: Kishore
+version: 0.2.0
+date-released: 2026-11-05
+license: MIT
+repository-code: "https://github.com/kishoren18-hue/steadyhand"
+url: "https://kishoren18-hue.github.io/steadyhand/"
+keywords:
+  - electromyography
+  - myoelectric control
+  - prosthetics
+  - conformal prediction
+  - uncertainty quantification
+abstract: >-
+  SteadyHand chooses the confidence cutoff in LibEMG's rejection block from a
+  target misfire rate. A conformal cutoff keeps a new user's expected misfire
+  rate at or below the target; an adaptive cutoff keeps each user's long-run
+  misfire rate at the target plus a vanishing term on any data sequence,
+  including electrode shift and limb-position changes.
+references:
+  - type: article
+    title: "LibEMG: An Open Source Library to Facilitate the Exploration of Myoelectric Control"
+    authors:
+      - family-names: Eddy
+        given-names: Ethan
+      - family-names: Campbell
+        given-names: Evan
+      - family-names: Phinyomark
+        given-names: Angkoon
+      - family-names: Bateman
+        given-names: Scott
+      - family-names: Scheme
+        given-names: Erik
+    journal: "IEEE Access"
+    volume: 11
+    year: 2023
+    doi: "10.1109/ACCESS.2023.3304544"

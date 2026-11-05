@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "steadyhand"
+version = "0.2.0"
+description = "Rejection cutoffs for myoelectric prosthesis control with misfire-rate guarantees (conformal and adaptive), built on LibEMG"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [{name = "Kishore Nuthalapati"}]
+requires-python = ">=3.10,<3.13"
+dependencies = ["numpy<2.0"]
+keywords = ["EMG", "myoelectric control", "prosthetics", "conformal prediction",
+            "uncertainty", "LibEMG"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Topic :: Scientific/Engineering :: Medical Science Apps.",
+  "Intended Audience :: Science/Research",
+]
+
+[project.optional-dependencies]
+experiments = ["libemg==2.0.3", "scikit-learn==1.9.1", "scipy==1.17.1",
+               "pandas==3.0.6", "matplotlib==3.11.2"]
+test = ["pytest==9.2.0", "libemg==2.0.3"]
+
+[project.urls]
+Homepage = "https://github.com/kishoren18-hue/steadyhand"
+Demo = "https://kishoren18-hue.github.io/steadyhand/"
+
+[tool.setuptools]
+packages = ["steadyhand"]
