@@ -6,6 +6,7 @@
 ![python](https://img.shields.io/badge/python-3.10%E2%80%933.12-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![built on LibEMG](https://img.shields.io/badge/built%20on-LibEMG-orange)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23990312.svg)](https://doi.org/10.5281/zenodo.23990312)
 
 **[Live demo](https://kishoren18-hue.github.io/steadyhand/)** · [Quickstart](#quickstart) · [Results](#results) · [Cite](#citation)
 
@@ -170,6 +171,7 @@ docs/            interactive demo (GitHub Pages)
   title   = {SteadyHand: rejection cutoffs for myoelectric control with misfire-rate guarantees},
   year    = {2026},
   version = {0.2.0},
+  doi     = {10.5281/zenodo.23990312},
   url     = {https://github.com/kishoren18-hue/steadyhand}
 }
 ```
