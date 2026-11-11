@@ -41,26 +41,29 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from data import build_features, GESTURES
+from data import build_features, GESTURES, REST
 from common import Model, out_of_person_scores
-from steadyhand.risk import misfire_curve, vote_predict, voted_misfire_curve
+from steadyhand.risk import misfire_curve, vote_predict, voted_misfire_curve, harmful
 from steadyhand.cutoffs import crc_threshold, personal_cutoff, ConformalCutoff, voting_grid
 
 threshold_empirical = personal_cutoff
 
 
-def threshold_conformal(per_user, alpha):
-    return ConformalCutoff(target=alpha).fit(per_user).threshold_
+def threshold_conformal(per_user, alpha, rest):
+    return ConformalCutoff(target=alpha, rest=rest).fit(per_user).threshold_
 
 ALPHAS = [0.03, 0.05, 0.075, 0.10, 0.15, 0.20]
 
 
-def score(out, y):
-    """Metrics for a stream of outputs (-1 = hold still)."""
-    act = out != -1
-    wrong = act & (out != y)
-    return dict(misfire=float(wrong.mean()), active=float(act.mean()),
-                acc_when_active=float(1 - wrong[act].mean() / 1) if act.any() else np.nan)
+def score(out, y, rest):
+    """Metrics for a stream of outputs (-1 = hold still). A misfire is a
+    movement output (not -1, not rest) that differs from the intended class."""
+    moving = (out != -1) & (out != rest)
+    wrong = moving & (out != y)
+    want = y != rest
+    return dict(misfire=float(wrong.mean()), active=float(moving.mean()),
+                correct_moves=float(((out == y) & want).sum() / max(want.sum(), 1)),
+                acc_when_active=float(1 - wrong[moving].mean()) if moving.any() else np.nan)
 
 
 vote_grid = voting_grid
@@ -103,6 +106,7 @@ def main():
     out = Path(a.out); out.mkdir(exist_ok=True)
     tag = f"{a.dataset}_{a.model}"
     K = len(GESTURES[a.dataset])
+    R = REST[a.dataset]
 
     X, y, subj, series, seg = build_features(a.dataset, a.data, out / f"features_{a.dataset}.npz")
     people = np.unique(subj)
@@ -111,7 +115,7 @@ def main():
 
     def add(p, method, alpha, t, o, yy, vote=1):
         rows.append(dict(person=int(p), vote=vote, method=method, alpha=alpha,
-                         t=float(t), **score(o, yy)))
+                         t=float(t), **score(o, yy, R)))
 
     for p in people:
         train = subj != p
@@ -129,9 +133,9 @@ def main():
         add(p, "fixed", np.nan, 0.9, vote_predict(pred, conf, seg[te], 1, 0.9, K), yt)
         t_conf_by_alpha = {}
         for al in ALPHAS:
-            t_tun = threshold_empirical(conf_in, pred_in != y[train], al)
-            t_per = threshold_empirical(conf1, pred1 != y1, al)
-            t_con = threshold_conformal(per_user, al)
+            t_tun = threshold_empirical(conf_in, harmful(pred_in, y[train], R), al)
+            t_per = threshold_empirical(conf1, harmful(pred1, y1, R), al)
+            t_con = threshold_conformal(per_user, al, R)
             t_conf_by_alpha[al] = t_con
             for name, t in [("tuned", t_tun), ("personal", t_per), ("conformal", t_con),
                             ("conformal+personal", max(t_con, t_per))]:
@@ -139,7 +143,7 @@ def main():
                 demo.setdefault(int(p), {}).setdefault(name, {})[str(al)] = float(t)
             info.append(dict(person=int(p), alpha=al, base_acc=base_acc,
                              cal_acc=float((pred1 == y1).mean()),
-                             cal_misfire_at_conformal=float(misfire_curve(conf1, pred1 != y1, np.array([t_con]))[0]),
+                             cal_misfire_at_conformal=float(misfire_curve(conf1, harmful(pred1, y1, R), np.array([t_con]))[0]),
                              test_misfire_at_conformal=rows[-2]["misfire"]))
         demo[int(p)].update(y=yt.tolist(), pred=pred.tolist(),
                             conf=np.round(conf, 5).tolist(), accuracy=base_acc)
@@ -148,9 +152,9 @@ def main():
         if a.vote > 1:
             k = a.vote
             grid = vote_grid(per_user)
-            curves = np.array([voted_misfire_curve(u["pred"], u["conf"], u["y"], u["seg"], k, grid, K)
+            curves = np.array([voted_misfire_curve(u["pred"], u["conf"], u["y"], u["seg"], k, grid, K, R)
                                for u in per_user])
-            cal_curve = voted_misfire_curve(pred1, conf1, y1, seg[ca], k, grid, K)
+            cal_curve = voted_misfire_curve(pred1, conf1, y1, seg[ca], k, grid, K, R)
             add(p, "fixed", np.nan, 0.9, vote_predict(pred, conf, seg[te], k, 0.9, K), yt, k)
             for al in ALPHAS:
                 t_naive = t_conf_by_alpha[al]
@@ -175,9 +179,9 @@ def main():
             ou = own_model_scores(X, y, subj, series, seg, cal_people, a.model)
             add(p, "own-none", np.nan, 0.0, opred, yt)
             for al in ALPHAS:
-                t = threshold_conformal(pu, al)
+                t = threshold_conformal(pu, al, R)
                 add(p, "pers-conformal", al, t, vote_predict(ppred, pconf, seg[te], 1, t, K), yt)
-                t = threshold_conformal(ou, al)
+                t = threshold_conformal(ou, al, R)
                 add(p, "own-conformal", al, t, vote_predict(opred, oconf, seg[te], 1, t, K), yt)
 
         print(f"person {p:2d}: accuracy {base_acc:.3f}   ({time.time() - t0:.0f}s)", flush=True)
@@ -189,7 +193,8 @@ def main():
     summ = (df.groupby(["vote", "method", "alpha"], dropna=False)
               .agg(mean_misfire=("misfire", "mean"), median_misfire=("misfire", "median"),
                    worst_misfire=("misfire", "max"), share_over_target=("over", "mean"),
-                   mean_active=("active", "mean"), acc_when_active=("acc_when_active", "mean"))
+                   mean_active=("active", "mean"), correct_moves=("correct_moves", "mean"),
+                   acc_when_active=("acc_when_active", "mean"))
               .reset_index())
     summ.to_csv(out / f"{tag}_summary.csv", index=False)
     with open(out / f"{tag}_demo.json", "w") as f:

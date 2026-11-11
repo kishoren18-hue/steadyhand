@@ -45,8 +45,9 @@ def score(P, y):
     np.add.at(M.T, MOTION, P.T)
     m_pred, m_conf = M.argmax(1), M.max(1)
     ym = MOTION[y]
-    return dict(gesture=dict(conf=g_conf, wrong=MOTION[g_pred] != ym, pred=g_pred),
-                motion=dict(conf=m_conf, wrong=m_pred != ym, pred=m_pred), y=y)
+    # misfire: a movement (not rest, motion 0) other than the intended motion
+    return dict(gesture=dict(conf=g_conf, wrong=(MOTION[g_pred] != ym) & (g_pred != 0), pred=g_pred),
+                motion=dict(conf=m_conf, wrong=(m_pred != ym) & (m_pred != 0), pred=m_pred), y=y)
 
 
 def run(setup, X, y, subj, series, seg):
@@ -94,7 +95,7 @@ def run(setup, X, y, subj, series, seg):
                     else act & np.isin(t_["y"], GRIPS) & (d["pred"] == 7)
                 rows.append(dict(setup=setup, person=p, controller=level, alpha=al, t=t,
                                  misfire=float((act & d["wrong"]).mean()),
-                                 active=float(act.mean()),
+                                 active=float((act & (MOTION[d["pred"]] != 0 if level == "gesture" else d["pred"] != 0)).mean()),
                                  grip_moves=float(closing.sum() / max(np.isin(t_["y"], GRIPS).sum(), 1))))
         print(f"{setup} person {p}", flush=True)
     return rows

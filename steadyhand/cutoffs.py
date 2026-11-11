@@ -18,7 +18,7 @@ only lower that person's misfire rate, so the guarantee is kept.
 from dataclasses import dataclass, field
 import numpy as np
 
-from .risk import misfire_curve, candidate_thresholds, voted_misfire_curve
+from .risk import misfire_curve, candidate_thresholds, voted_misfire_curve, harmful
 
 
 def crc_threshold(grid, curves, target, B=1.0):
@@ -55,11 +55,13 @@ class ConformalCutoff:
     >>> classifier.add_rejection(threshold=cut.threshold_)
 
     Each person is a dict with arrays 'pred', 'conf', 'y' (and 'seg' when
-    vote > 1), from a model that never trained on that person.
+    vote > 1), from a model that never trained on that person. Pass `rest`
+    (the class index of "rest") so that holding still is never a misfire.
     """
     target: float = 0.05
     vote: int = 1                 # LibEMG majority-vote length; 1 = off
     n_classes: int | None = None  # needed when vote > 1
+    rest: int | None = None       # class index of "rest"; its predictions never misfire
     B: float = 1.0
     threshold_: float = field(default=None, init=False)
     n_people_: int = field(default=0, init=False)
@@ -68,13 +70,15 @@ class ConformalCutoff:
         self.n_people_ = len(people)
         if self.vote <= 1:
             grid = candidate_thresholds(np.concatenate([p["conf"] for p in people]))
-            curves = [misfire_curve(p["conf"], p["pred"] != p["y"], grid) for p in people]
+            curves = [misfire_curve(p["conf"], harmful(p["pred"], p["y"], self.rest), grid)
+                      for p in people]
         else:
             if self.n_classes is None:
                 raise ValueError("n_classes is required when vote > 1")
             grid = voting_grid(people)
             curves = [voted_misfire_curve(p["pred"], p["conf"], p["y"], p["seg"],
-                                          self.vote, grid, self.n_classes) for p in people]
+                                          self.vote, grid, self.n_classes, self.rest)
+                      for p in people]
         self.threshold_ = crc_threshold(grid, curves, self.target, self.B)
         return self
 

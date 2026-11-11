@@ -68,3 +68,71 @@ def test_conformal_api_matches_function():
     curves = [misfire_curve(p["conf"], p["pred"] != p["y"], grid) for p in people]
     assert cut.threshold_ == crc_threshold(grid, curves, 0.1)
     assert cut.floor == pytest.approx(1 / 31)
+
+
+# ---------------------------------------------------------------- v0.3 additions
+from steadyhand import harmful, ConformalCutoff
+from steadyhand.adaptive import simulate as _sim, S_MAX as _S, to_score as _ts
+
+
+def test_harmful_rest_is_never_a_misfire():
+    pred = np.array([0, 1, 2, 0, 2])
+    y = np.array([1, 1, 0, 0, 1])
+    assert harmful(pred, y, rest=0).tolist() == [False, False, True, False, True]
+    assert harmful(pred, y).tolist() == [True, False, True, False, True]
+
+
+@pytest.mark.parametrize("p", [0.05, 0.1, 0.3])
+@pytest.mark.parametrize("seed", range(20))
+def test_ipw_weighted_bound_is_deterministic(p, seed):
+    rng = np.random.default_rng(seed)
+    T = 3000
+    conf = rng.uniform(0.3, 1.0, T)
+    wrong = rng.random(T) < np.r_[np.full(T // 2, 0.05), np.full(T - T // 2, 0.7)]  # shift
+    fb = rng.random(T) < p
+    alpha, eta, start = 0.05, 0.5, 0.9
+    acted, _ = _sim(conf, wrong, alpha, start, eta, fb, rate=p)
+    weighted = ((acted & wrong) & fb).sum() / p / T
+    bound = alpha + (_S + eta / p - min(_ts(start), _S)) / (eta * T)
+    assert weighted <= bound + 1e-12
+
+
+def test_ipw_tracks_true_rate_in_expectation():
+    rng = np.random.default_rng(0)
+    T, p, alpha = 4000, 0.1, 0.05
+    conf = rng.uniform(0.3, 1.0, T)
+    wrong = rng.random(T) < 0.5
+    rates = []
+    for s in range(200):
+        fb = np.random.default_rng(s).random(T) < p
+        acted, _ = _sim(conf, wrong, alpha, 0.9, 0.5, fb, rate=p)
+        rates.append((acted & wrong).mean())
+    assert np.mean(rates) <= alpha + (_S + 0.5 / p) / (0.5 * T) + 0.005
+
+
+def test_adaptive_class_ipw_matches_simulate():
+    rng = np.random.default_rng(3)
+    T, p = 2000, 0.2
+    conf = rng.uniform(0.3, 1.0, T)
+    wrong = rng.random(T) < 0.3
+    fb = rng.random(T) < p
+    ad = AdaptiveCutoff(target=0.05, start=0.9, feedback_rate=p)
+    acts = []
+    for c, w, f in zip(conf, wrong, fb):
+        a = ad.should_act(c)
+        acts.append(a)
+        ad.update(misfire=a and w, labeled=f)
+    ref, _ = _sim(conf, wrong, 0.05, 0.9, 0.5, fb, rate=p)
+    assert np.array_equal(np.array(acts), ref)
+
+
+def test_conformal_cutoff_rest_option():
+    rng = np.random.default_rng(1)
+    people = []
+    for _ in range(30):
+        y = rng.integers(0, 4, 500)
+        pred = np.where(rng.random(500) < 0.6, y, rng.integers(0, 4, 500))
+        people.append(dict(pred=pred, conf=rng.uniform(0.25, 1, 500), y=y))
+    t_all = ConformalCutoff(target=0.1).fit(people).threshold_
+    t_rest = ConformalCutoff(target=0.1, rest=0).fit(people).threshold_
+    assert t_rest <= t_all          # fewer decisions count as misfires
