@@ -3,18 +3,33 @@
 A *decision* is one classifier output (one window, typically every 50 ms).
 LibEMG's rejection rule acts on a decision only if its confidence is above a
 cutoff t; otherwise it outputs -1 ("hold still"). A *misfire* is a decision
-that acts and is wrong. The misfire rate at t is misfires / all decisions.
+that makes the device move in a way the user did not intend: the output is a
+movement class (not rejected, not "rest") and differs from the intended class.
+This covers false activations (moving while the user rests) and wrong motions.
+Predicting "rest" when the user wanted to move is a *missed movement*: the
+device holds still, which costs usability but is not a misfire. The misfire
+rate at t is misfires / all decisions.
 
 All functions here are exact and vectorized.
 """
 import numpy as np
 
 
+def harmful(pred, y, rest=None):
+    """Bool per decision: would acting on `pred` move the device wrongly?
+    `rest` is the class index of "rest" / "no motion" (None if the class set
+    has none, in which case every wrong prediction is harmful)."""
+    pred, y = np.asarray(pred), np.asarray(y)
+    bad = pred != y
+    return bad if rest is None else bad & (pred != rest)
+
+
 def misfire_curve(conf, wrong, thresholds):
     """Misfire rate at each threshold: mean of (conf > t and wrong).
 
     conf:       (n,) top-class confidence of each decision
-    wrong:      (n,) bool, prediction != true label
+    wrong:      (n,) bool, acting on the prediction would be a misfire
+                (use harmful(pred, y, rest))
     thresholds: (m,) cutoffs to evaluate
     """
     conf = np.asarray(conf, float)
@@ -61,7 +76,7 @@ def vote_predict(pred, conf, seg, k, t, n_classes):
     return _mode_with_reject(P, idx >= 0, n_classes)
 
 
-def voted_misfire_curve(pred, conf, y, seg, k, grid, n_classes):
+def voted_misfire_curve(pred, conf, y, seg, k, grid, n_classes, rest=None):
     """Exact misfire rate after rejection + majority voting, at every cutoff in grid.
 
     A decision's vote looks at its last k (pred, conf) pairs. As t rises those
@@ -82,6 +97,8 @@ def voted_misfire_curve(pred, conf, y, seg, k, grid, n_classes):
     for j in range(k + 1):
         v = _mode_with_reject(np.where(rank < j, -1, Pk), present, n_classes)
         m = ((v != -1) & (v != y)).astype(float)
+        if rest is not None:
+            m *= (v != rest)
         if j == 0:
             base = m.sum()
         else:

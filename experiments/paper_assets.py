@@ -1,9 +1,10 @@
-"""Generate every table, statistic and figure in paper/ from results/.
+"""Generate every table, statistic and figure in paper/ and the README from results/.
 
     python experiments/paper_assets.py
 
-Writes paper/tables/*.tex, paper/figures/*.pdf and paper/numbers.tex
-(LaTeX macros for every number quoted in the text).
+Writes paper/tables/*.tex, paper/figures/*.pdf, figures/*.png and
+paper/numbers.tex (LaTeX macros for every number quoted in the text), and
+prints the same numbers so README claims can be checked against them.
 """
 import json
 from pathlib import Path
@@ -14,15 +15,23 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-R, P = Path("results"), Path("paper")
-(P / "tables").mkdir(parents=True, exist_ok=True)
-(P / "figures").mkdir(parents=True, exist_ok=True)
+R, P, F = Path("results"), Path("paper"), Path("figures")
+for d in (P / "tables", P / "figures", F):
+    d.mkdir(parents=True, exist_ok=True)
 rng = np.random.default_rng(0)
 macros = {}
+DS = [("ciil", "Electrode shift"), ("limbpos", "Arm position"),
+      ("uci", "UCI, later session"), ("3dc", "3DC, later session")]
+TAG = {"ciil": "shift", "limbpos": "arm", "uci": "uci", "3dc": "tdc"}
+plt.rcParams.update({"font.size": 8, "axes.spines.top": False, "axes.spines.right": False})
 
 
 def pc(x, d=1):
     return f"{100 * x:.{d}f}\\%"
+
+
+def num(x, d=1):
+    return f"{100 * x:.{d}f}"
 
 
 def boot_ci(x, n=10000):
@@ -32,7 +41,7 @@ def boot_ci(x, n=10000):
 
 
 def at(df, method, alpha, vote=None):
-    d = df if vote is None else df[df.vote == vote]
+    d = df if vote is None or "vote" not in df else df[df.vote == vote]
     d = d[d.method == method]
     return d[d.alpha.isna()] if alpha is None else d[np.isclose(d.alpha, alpha)]
 
@@ -43,10 +52,14 @@ def kept(df, method, vote=None):
     return int((g <= g.index + 1e-12).sum()), len(g)
 
 
-# ------------------------------------------------------------- shared-model results
+def over(g, a):
+    return int((g.misfire > a + 1e-12).sum())
+
+
+# ============================================================ shared models
 sh = {d: pd.read_csv(R / f"{d}_LDA_per_person.csv") for d in ("uci", "3dc")}
-rf = pd.read_csv(R / "uci_RF_per_person.csv")
 info = {d: pd.read_csv(R / f"{d}_LDA_person_info.csv") for d in ("uci", "3dc")}
+rf = pd.read_csv(R / "uci_RF_per_person.csv")
 
 rows = []
 for d, name in (("uci", "UCI"), ("3dc", "3DC")):
@@ -58,18 +71,19 @@ for d, name in (("uci", "UCI"), ("3dc", "3DC")):
                         ("Tuned on training data", "tuned", 0.10),
                         ("Conformal", "conformal", 0.10),
                         ("Conformal + personal", "conformal+personal", 0.10)]:
-        g = at(df, m, a, vote=1)
-        rows.append((name, label, "--" if a is None else pc(a, 0), pc(g.misfire.mean()),
-                     pc(g.misfire.max()),
-                     "--" if a is None else f"{(g.misfire > a).sum()}/{len(g)}",
-                     pc(g.active.mean())))
+        g = at(df, m, a, 1)
+        rows.append([name if label.startswith("Fixed") else "", label,
+                     "--" if a is None else num(a, 0) if a == 0.10 else num(a, 0),
+                     num(g.misfire.mean()), num(g.misfire.max()),
+                     "--" if a is None else f"{over(g, a)}/{len(g)}",
+                     num(g.correct_moves.mean())])
 with open(P / "tables" / "shared.tex", "w") as f:
     f.write("\\begin{tabular}{@{}llrrrrr@{}}\n\\toprule\n"
-            "Data & Cutoff & $\\alpha$ & Mean & Worst & Over & Moves \\\\\n\\midrule\n")
+            "Data & Cutoff & $\\alpha$ & Mean & Worst & Over & Correct \\\\\n\\midrule\n")
     for i, r in enumerate(rows):
         if i == 7:
             f.write("\\midrule\n")
-        f.write(" & ".join(r).replace("%", "\\%").replace("\\\\%", "\\%") + " \\\\\n")
+        f.write(" & ".join(r) + " \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
 
 for d, name in (("uci", "Uci"), ("3dc", "Tdc")):
@@ -79,172 +93,206 @@ for d, name in (("uci", "Uci"), ("3dc", "Tdc")):
     macros[f"tunedKept{name}"] = str(kept(df, "tuned", 1)[0])
     macros[f"fixedMean{name}"] = pc(at(df, "fixed", None, 1).misfire.mean())
     macros[f"fixedWorst{name}"] = pc(at(df, "fixed", None, 1).misfire.max())
-    for m, key in (("conformal", "Conf"), ("conformal+personal", "ConfPers"),
-                   ("own-conformal", "Own")):
-        macros[f"kept{key}{name}"] = str(kept(df, m, 1)[0])
-    for m, key in (("conformal-naive", "Naive"), ("conformal-vote", "Vote"),
-                   ("conformal-vote+personal", "VotePers")):
-        macros[f"kept{key}{name}"] = str(kept(df, m, 5)[0])
-    own = df[df.method == "own-none"].acc_when_active.mean()
-    macros[f"ownAcc{name}"] = pc(own)
+    macros[f"fixedMoves{name}"] = pc(at(df, "fixed", None, 1).correct_moves.mean())
+    for m, k in (("conformal", "Conf"), ("conformal+personal", "ConfPers"),
+                 ("own-conformal", "Own"), ("pers-conformal", "Pers")):
+        macros[f"kept{k}{name}"] = str(kept(df, m, 1)[0])
+    for m, k in (("conformal-vote", "Vote"), ("conformal-vote+personal", "VotePers"),
+                 ("conformal-naive", "Naive")):
+        macros[f"kept{k}{name}"] = str(kept(df, m, 5)[0])
+    macros[f"worstConf{name}"] = pc(at(df, "conformal", 0.05, 1).misfire.max())
+    macros[f"worstConfPers{name}"] = pc(at(df, "conformal+personal", 0.05, 1).misfire.max())
+    macros[f"confFiveMoves{name}"] = pc(at(df, "conformal", 0.05, 1).correct_moves.mean())
+    macros[f"ownMoves{name}"] = pc(df[df.method == "own-none"].correct_moves.mean())
     j = info[d][info[d].alpha == 0.05]
-    r = stats.spearmanr(j.cal_misfire_at_conformal, j.test_misfire_at_conformal)
-    macros[f"rhoCal{name}"] = f"{r.statistic:.2f}"
-    macros[f"pCal{name}"] = f"{r.pvalue:.3f}" if r.pvalue >= 0.001 else "<0.001"
-u = sh["uci"]
-macros["worstConfUci"] = pc(at(u, "conformal", 0.05, 1).misfire.max())
-macros["worstConfPersUci"] = pc(at(u, "conformal+personal", 0.05, 1).misfire.max())
-macros["ownFiveMovesUci"] = pc(at(u, "own-conformal", 0.05, 1).active.mean())
-macros["sharedFiveMovesUci"] = pc(at(u, "conformal+personal", 0.05, 1).active.mean())
-macros["rfKeptConf"] = str(kept(rf, "conformal", 1)[0])
-macros["rfTunedFive"] = pc(at(rf, "tuned", 0.05, 1).misfire.mean())
-macros["rfFixed"] = pc(at(rf, "fixed", None, 1).misfire.mean())
-j = info["uci"][info["uci"].alpha == 0.05]
-r = stats.spearmanr(j.base_acc, j.test_misfire_at_conformal)
-macros["rhoAccUci"] = f"{r.statistic:.2f}"
-p22 = sh["uci"][(sh["uci"].method == "own-none") & (sh["uci"].person == 22)].acc_when_active.iloc[0]
-macros["pTwentyTwoShared"] = pc(j[j.person == 22].base_acc.iloc[0])
-macros["pTwentyTwoOwn"] = pc(p22)
+    r1 = stats.spearmanr(j.base_acc, j.test_misfire_at_conformal)
+    r2 = stats.spearmanr(j.cal_misfire_at_conformal, j.test_misfire_at_conformal)
+    macros[f"rhoAcc{name}"] = f"{r1.statistic:.2f}"
+    macros[f"rhoCal{name}"] = f"{r2.statistic:.2f}"
+    macros[f"pCal{name}"] = "<0.001" if r2.pvalue < 0.001 else f"{r2.pvalue:.3f}"
 
-# ------------------------------------------------------------- drift results
-NAMES = {"ciil": "Electrode shift", "limbpos": "Arm position",
-         "uci": "UCI, later session", "3dc": "3DC, later session"}
-dr = {d: pd.read_csv(R / f"drift_{d}.csv") for d in NAMES}
-methods = [("Fixed 0.90 (LibEMG)", "fixed", None), ("Personal", "personal", 0.05),
+macros["rfFixed"] = pc(at(rf, "fixed", None, 1).misfire.mean())
+macros["rfTunedFive"] = pc(at(rf, "tuned", 0.05, 1).misfire.mean())
+macros["rfKeptConf"] = str(kept(rf, "conformal", 1)[0])
+macros["rfKeptTuned"] = str(kept(rf, "tuned", 1)[0])
+
+# ============================================================ drift
+dr = {d: pd.read_csv(R / f"drift_{d}.csv") for d, _ in DS}
+allp = sum(dr[d].person.nunique() for d, _ in DS)
+macros["nPeople"] = str(allp)
+ad_full = pd.concat([dr[d][dr[d].method.str.match(r"adaptive(-eta|$)")] for d, _ in DS])
+ad_ipw = pd.concat([dr[d][dr[d].method == "adaptive-10%-ipw"] for d, _ in DS])
+macros["nRuns"] = f"{len(ad_full):,}".replace(",", "{,}")
+macros["nViol"] = str(int((ad_full.bound_value > ad_full.bound + 1e-12).sum()))
+macros["nViolIpw"] = str(int((ad_ipw.bound_value > ad_ipw.bound + 1e-12).sum()))
+macros["nRunsIpw"] = str(len(ad_ipw))
+
+METHODS = [("Fixed 0.90 (LibEMG)", "fixed", None),
+           ("ROC per class", "roc-per-class", None),
            ("Conformal, before change", "conformal-before", 0.05),
            ("Conformal, after change", "conformal-after", 0.05),
-           ("Adaptive (ours)", "adaptive", 0.05),
-           ("Adaptive, 10\\% feedback", "adaptive-10%", 0.05),
-           ("Best fixed, hindsight", "oracle-static", 0.05)]
+           ("Best fixed, hindsight", "oracle-static", 0.05),
+           ("Adaptive", "adaptive", 0.05),
+           ("Retrain + fixed 0.90", "retrain+fixed", None),
+           ("Retrain + conformal", "retrain+conformal", 0.05),
+           ("Retrain + adaptive", "retrain+adaptive", 0.05),
+           ("10\\% labels: adaptive (plain)", "adaptive-10%", 0.05),
+           ("10\\% labels: adaptive (weighted)", "adaptive-10%-ipw", 0.05),
+           ("10\\% labels: retrain + fixed", "retrain10+fixed", None),
+           ("10\\% labels: retrain + adaptive", "retrain-10%+adaptive", 0.05)]
 with open(P / "tables" / "drift.tex", "w") as f:
-    f.write("\\begin{tabular}{@{}l" + "rrr" * 4 + "@{}}\n\\toprule\n")
-    f.write(" & " + " & ".join(f"\\multicolumn{{3}}{{c}}{{{NAMES[d]} ({dr[d].person.nunique()})}}"
-                               for d in NAMES) + " \\\\\n")
+    f.write("\\begin{tabular}{@{}l" + "rrr" * 4 + "@{}}\n\\toprule\n & ")
+    f.write(" & ".join(f"\\multicolumn{{3}}{{c}}{{{n} ({dr[d].person.nunique()})}}"
+                       for d, n in DS) + " \\\\\n")
     f.write("".join(f"\\cmidrule(lr){{{2 + 3 * i}-{4 + 3 * i}}}" for i in range(4)) + "\n")
-    f.write("Cutoff" + " & Mean & Worst & Moves" * 4 + " \\\\\n\\midrule\n")
-    for label, m, a in methods:
+    f.write("Cutoff" + " & Mean & Worst & Corr." * 4 + " \\\\\n\\midrule\n")
+    for i, (label, m, a) in enumerate(METHODS):
+        if label.startswith("Retrain + fixed") or label.startswith("10\\% labels: adaptive (plain"):
+            f.write("\\midrule\n")
         cells = []
-        for d in NAMES:
+        for d, _ in DS:
             g = at(dr[d], m, a)
-            cells += [f"{100 * g.misfire.mean():.1f}", f"{100 * g.misfire.max():.1f}",
-                      f"{100 * g.active.mean():.0f}"]
+            cells += [num(g.misfire.mean()), num(g.misfire.max()), num(g.correct_moves.mean(), 0)]
         f.write(label + " & " + " & ".join(cells) + " \\\\\n")
     f.write("\\bottomrule\n\\end{tabular}\n")
 
-c = dr["ciil"]
-macros["shiftAcc"] = pc(c.groupby("person").accuracy.first().mean())
-macros["shiftFixedMean"] = pc(at(c, "fixed", None).misfire.mean())
-macros["shiftFixedWorst"] = pc(at(c, "fixed", None).misfire.max())
-macros["shiftBeforeMean"] = pc(at(c, "conformal-before", 0.05).misfire.mean())
-macros["shiftBeforeWorst"] = pc(at(c, "conformal-before", 0.05).misfire.max())
-macros["shiftBeforeKept"] = str(kept(c, "conformal-before")[0])
-a5 = at(c, "adaptive", 0.05)
-macros["shiftAdaptMean"] = pc(a5.misfire.mean())
-lo, hi = boot_ci(a5.misfire)
-macros["shiftAdaptCI"] = f"{100 * lo:.1f}--{100 * hi:.1f}\\%"
-macros["shiftAdaptWorst"] = pc(a5.misfire.max())
-macros["shiftAdaptMoves"] = pc(a5.active.mean())
-macros["shiftAfterMoves"] = pc(at(c, "conformal-after", 0.05).active.mean())
-macros["shiftOracleMoves"] = pc(at(c, "oracle-static", 0.05).active.mean())
-macros["shiftSparseKept"] = str(kept(c, "adaptive-10%")[0])
-lp = dr["limbpos"]
-macros["armFixedMean"] = pc(at(lp, "fixed", None).misfire.mean())
-macros["armBeforeTen"] = pc(at(lp, "conformal-before", 0.10).misfire.mean())
-macros["armAdaptTenMean"] = pc(at(lp, "adaptive", 0.10).misfire.mean())
-macros["armAdaptTenWorst"] = pc(at(lp, "adaptive", 0.10).misfire.max())
-macros["armAdaptTenMoves"] = pc(at(lp, "adaptive", 0.10).active.mean())
-macros["armAfterTenMoves"] = pc(at(lp, "conformal-after", 0.10).active.mean())
+for d, _ in DS:
+    t, df = TAG[d], dr[d]
+    acc = df.groupby("person").accuracy.first()
+    macros[f"{t}Acc"] = pc(acc.mean())
+    macros[f"{t}RetrainAcc"] = pc(at(df, "retrain+fixed", None).accuracy_stream.mean())
+    for label, m, a in METHODS:
+        g = at(df, m, a)
+        key = "".join(w.capitalize() for w in
+                      m.replace("+", " ").replace("-", " ").replace("%", "pct").split()
+                      ).replace("10", "ten")
+        macros[f"{t}{key}Mean"] = pc(g.misfire.mean())
+        macros[f"{t}{key}Worst"] = pc(g.misfire.max())
+        macros[f"{t}{key}Moves"] = pc(g.correct_moves.mean())
+        if a is not None:
+            macros[f"{t}{key}Over"] = str(over(g, a))
+        else:
+            macros[f"{t}{key}Over"] = str(over(g, 0.05))
+        kk = df[df.method == m]
+        if a is not None:
+            macros[f"{t}{key}Kept"] = str(kept(df, m)[0])
+            macros[f"{t}{key}KeptAll"] = str(int(sum(
+                over(kk[np.isclose(kk.alpha, al)], al) == 0 for al in kk.alpha.unique())))
+    lo, hi = boot_ci(at(df, "retrain+adaptive", 0.05).misfire)
+    macros[f"{t}RetrainAdaptiveCI"] = f"{100 * lo:.1f}--{100 * hi:.1f}\\%"
+    macros[f"{t}N"] = str(df.person.nunique())
 
-n_runs = viol = 0
-for d, df in dr.items():
-    ad = df[df.method.str.startswith("adaptive")]
-    n_runs += len(ad)
-    viol += int((ad.bound_misfire > ad.bound + 1e-12).sum())
-macros["nRuns"] = f"{n_runs:,}".replace(",", "{,}")
-macros["nViol"] = str(viol)
-macros["nPeople"] = str(sum(df.person.nunique() for df in dr.values()))
+# pooled across datasets at 5%
+pool = pd.concat(dr.values())
+for m, k in (("retrain+adaptive", "RA"), ("retrain+fixed", "RF"), ("adaptive", "A"),
+             ("fixed", "F"), ("retrain-10%+adaptive", "RAten"), ("retrain10+fixed", "RFten")):
+    g = at(pool, m, 0.05 if "adaptive" in m else None)
+    macros[f"pool{k}Over"] = str(over(g, 0.05))
+    macros[f"pool{k}Moves"] = pc(g.correct_moves.mean())
+    macros[f"pool{k}Mean"] = pc(g.misfire.mean())
+    macros[f"pool{k}Worst"] = pc(g.misfire.max())
+# paired tests, 5% target, pooled people
+ra = at(pool, "retrain+adaptive", 0.05).set_index(["dataset", "person"])
+rfx = at(pool, "retrain+fixed", None).set_index(["dataset", "person"])
+adp = at(pool, "adaptive", 0.05).set_index(["dataset", "person"])
+orc = at(pool, "oracle-static", 0.05).set_index(["dataset", "person"])
+w1 = stats.wilcoxon(ra.correct_moves, adp.loc[ra.index].correct_moves)
+w2 = stats.wilcoxon(adp.correct_moves, orc.loc[adp.index].correct_moves)
+w3 = stats.wilcoxon(ra.misfire, rfx.loc[ra.index].misfire)
+for k, w in (("wilRAvsA", w1), ("wilAvsOracle", w2), ("wilRAvsRF", w3)):
+    macros[k] = f"10^{{{int(np.floor(np.log10(max(w.pvalue, 1e-300))))+1}}}"
+macros["deltaMovesRAvsRF"] = f"{100 * (rfx.correct_moves.mean() - ra.correct_moves.mean()):.1f}"
 
-# paired test: adaptive vs conformal-after activity at 5%, pooled over datasets
-a = np.concatenate([at(df, "adaptive", 0.05).sort_values("person").active.values for df in dr.values()])
-b = np.concatenate([at(df, "conformal-after", 0.05).sort_values("person").active.values for df in dr.values()])
-w = stats.wilcoxon(a, b)
-macros["wilcoxP"] = "10^{" + str(int(np.ceil(np.log10(w.pvalue)))) + "}" if w.pvalue < 1e-3 else f"{w.pvalue:.3f}"
-o = np.concatenate([at(df, "oracle-static", 0.05).sort_values("person").active.values for df in dr.values()])
-w2 = stats.wilcoxon(a, o)
-macros["wilcoxOracleP"] = "10^{" + str(int(np.ceil(np.log10(w2.pvalue)))) + "}" if w2.pvalue < 1e-3 else f"{w2.pvalue:.3f}"
-for dname in ("limbpos", "uci", "3dc"):
-    macros[f"sparseKept{dname.replace('3dc', 'tdc')}"] = str(kept(dr[dname], "adaptive-10%")[0])
-
-# ------------------------------------------------------------- motion-level controller
-g = pd.read_csv(R / "groups_3dc.csv")
-own = g[(g.setup == "own") & np.isclose(g.alpha, 0.075)]
-macros["gripGesture"] = pc(own[own.controller == "gesture"].grip_moves.mean(), 0)
-macros["gripMotion"] = pc(own[own.controller == "motion"].grip_moves.mean(), 0)
-macros["gripMisG"] = pc(own[own.controller == "gesture"].misfire.mean())
-macros["gripMisM"] = pc(own[own.controller == "motion"].misfire.mean())
+# ============================================================ motion-level (3DC)
+g3 = pd.read_csv(R / "groups_3dc.csv")
+o = g3[(g3.setup == "own") & np.isclose(g3.alpha, 0.075)]
+macros["gripGesture"] = pc(o[o.controller == "gesture"].grip_moves.mean(), 0)
+macros["gripMotion"] = pc(o[o.controller == "motion"].grip_moves.mean(), 0)
+macros["gripMisG"] = pc(o[o.controller == "gesture"].misfire.mean())
+macros["gripMisM"] = pc(o[o.controller == "motion"].misfire.mean())
 
 with open(P / "numbers.tex", "w") as f:
-    for k, v in sorted(macros.items()):
-        f.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")
+    for k in sorted(macros):
+        f.write(f"\\newcommand{{\\{k}}}{{{macros[k]}}}\n")
 
-# ------------------------------------------------------------- figures (print size)
-plt.rcParams.update({"font.size": 8, "font.family": "serif", "axes.spines.top": False,
-                     "axes.spines.right": False, "axes.grid": True, "grid.color": "#e4e3df",
-                     "grid.linewidth": 0.5, "axes.linewidth": 0.6, "lines.linewidth": 1.4,
-                     "legend.fontsize": 7, "xtick.labelsize": 7, "ytick.labelsize": 7})
-pct = matplotlib.ticker.PercentFormatter(1.0, decimals=0)
-C = {"conformal-before": "#eb6834", "conformal-after": "#1baf7a", "adaptive": "#2a78d6",
-     "tuned": "#8a8a85", "conformal+personal": "#2a78d6"}
+# ============================================================ figures
+COL = {"fixed": "#9a9a9a", "conformal-before": "#d98c2b", "adaptive": "#3b7dd8",
+       "retrain+fixed": "#7a5195", "retrain+adaptive": "#1a9e5c"}
+LAB = {"fixed": "Fixed 0.90", "conformal-before": "Conformal (before)",
+       "adaptive": "Adaptive", "retrain+fixed": "Retrain + fixed 0.90",
+       "retrain+adaptive": "Retrain + adaptive"}
 
-fig, axes = plt.subplots(1, 4, figsize=(7.16, 1.95))
-for ax, (d, df) in zip(axes, dr.items()):
-    for m, lab in (("conformal-before", "Conformal, calibrated before change"),
-                   ("conformal-after", "Conformal, calibrated after change"),
-                   ("adaptive", "Adaptive (ours)")):
-        s = df[df.method == m].groupby("alpha").misfire.max()
-        ax.plot(s.index, s.values, color=C[m], marker="o", ms=2.5, label=lab)
-    ax.plot([0, .21], [0, .21], ls="--", color="#52514e", lw=0.8)
-    ax.set_title(f"{NAMES[d]} ({df.person.nunique()})", fontsize=8, loc="left")
-    ax.set_xlim(0, .21); ax.set_xticks([0, .10, .20])
-    ax.xaxis.set_major_formatter(pct); ax.yaxis.set_major_formatter(pct)
-    ax.set_xlabel("Target")
-axes[0].set_ylabel("Worst user's misfire rate")
-fig.legend(*axes[0].get_legend_handles_labels(), loc="upper center", ncol=3, frameon=False,
-           bbox_to_anchor=(0.5, 1.04))
-fig.tight_layout(rect=(0, 0, 1, 0.9), w_pad=0.8)
-fig.savefig(P / "figures" / "worst_user.pdf"); plt.close(fig)
 
-tr = json.loads((R / "drift_ciil_traces.json").read_text())
-b5 = at(c, "conformal-before", 0.05).set_index("person").misfire
-pid = str(int(b5.idxmax()))
-t = tr[pid]
+def drift_figure(path, dpi=None):
+    fig, ax = plt.subplots(2, 4, figsize=(7.16, 3.3), sharex=True)
+    for j, (d, name) in enumerate(DS):
+        df = dr[d]
+        for m in COL:
+            if m in ("fixed", "retrain+fixed"):
+                g = at(df, m, None)
+                for row, col in ((0, "misfire"), (1, "correct_moves")):
+                    v = g[col].max() if row == 0 else g[col].mean()
+                    ax[row, j].axhline(100 * v, color=COL[m], ls=":", lw=1,
+                                       label=LAB[m] if j == 0 and row == 0 else None)
+                continue
+            g = df[df.method == m].groupby("alpha")
+            ax[0, j].plot(100 * g.misfire.max().index, 100 * g.misfire.max(), "o-", ms=2.5,
+                          color=COL[m], lw=1.2, label=LAB[m] if j == 0 else None)
+            ax[1, j].plot(100 * g.correct_moves.mean().index, 100 * g.correct_moves.mean(),
+                          "o-", ms=2.5, color=COL[m], lw=1.2)
+        a = np.array([3, 20])
+        ax[0, j].plot(a, a, "k--", lw=0.8)
+        worst_any = max(df[df.method.isin(list(COL))].groupby(["method", "alpha"], dropna=False)
+                        .misfire.max().max(), at(df, "fixed", None).misfire.max())
+        top = max(45, 100 * worst_any + 5)
+        ax[0, j].set_ylim(0, min(top, 100)); ax[1, j].set_ylim(0, 100)
+        ax[0, j].set_title(name, fontsize=8)
+        ax[1, j].set_xlabel("Target misfire rate (%)")
+    ax[0, 0].set_ylabel("Worst user\nmisfire (%)")
+    ax[1, 0].set_ylabel("Correct\nmovements (%)")
+    fig.align_ylabels(ax[:, 0])
+    fig.legend(loc="lower center", ncol=5, frameon=False, fontsize=7, bbox_to_anchor=(0.5, -0.02))
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.savefig(path, dpi=dpi); plt.close(fig)
+
+
+drift_figure(P / "figures" / "drift.pdf")
+drift_figure(F / "drift_overview.png", dpi=170)
+
+# one electrode-shift user: running misfire
+tr = json.load(open(R / "drift_ciil_traces.json"))
+ex = at(dr["ciil"], "conformal-before", 0.05).sort_values("misfire").iloc[-1].person
+macros_extra = {"examplePerson": str(int(ex))}
+t = tr[str(int(ex))]
 x = np.arange(len(t["run_before"])) * 4 * 0.05
-fig, ax = plt.subplots(figsize=(3.4, 1.8))
-ax.plot(x, t["run_before"], color=C["conformal-before"], label="Conformal, calibrated before shift")
-ax.plot(x, t["run_adaptive"], color=C["adaptive"], label="Adaptive (ours)")
-ax.axhline(0.05, ls="--", color="#52514e", lw=0.8)
-ax.yaxis.set_major_formatter(pct)
-ax.set_xlabel("Seconds of use after a 45-degree armband shift")
-ax.set_ylabel("Misfire rate so far")
-ax.legend(frameon=False, loc="upper right")
-fig.tight_layout(); fig.savefig(P / "figures" / "one_user.pdf"); plt.close(fig)
-macros_pid = pid
+for path, dpi in ((P / "figures" / "one_user.pdf", None), (F / "drift_one_user.png", 170)):
+    fig, axx = plt.subplots(figsize=(3.5, 1.9))
+    axx.plot(x, 100 * np.array(t["run_before"]), color=COL["conformal-before"], label="Conformal (before shift)")
+    axx.plot(x, 100 * np.array(t["run_adaptive"]), color=COL["adaptive"], label="Adaptive, all feedback")
+    axx.plot(x, 100 * np.array(t["run_ipw"]), color="#5fb0e8", ls="--", label="Adaptive, 10% feedback (weighted)")
+    axx.axhline(5, color="k", ls="--", lw=0.8)
+    axx.set_xlabel("Time after electrode shift (s)"); axx.set_ylabel("Running misfire (%)")
+    axx.set_ylim(0, 60); axx.legend(frameon=False, fontsize=6)
+    fig.tight_layout(); fig.savefig(path, dpi=dpi); plt.close(fig)
 
-fig, ax = plt.subplots(figsize=(3.4, 1.9))
-for d, ls in (("uci", "-"), ("3dc", "--")):
-    for m, lab in (("tuned", "Tuned on training data"), ("conformal+personal", "Conformal + personal")):
-        s = sh[d][(sh[d].vote == 1) & (sh[d].method == m)].groupby("alpha").misfire.mean()
-        ax.plot(s.index, s.values, color=C[m], ls=ls, marker="o", ms=2.5,
-                label=f"{lab}, {d.upper()}")
-ax.plot([0, .21], [0, .21], color="#52514e", lw=0.8, ls=":")
-ax.set_xlim(0, .21); ax.set_xticks([0, .05, .10, .15, .20])
-ax.xaxis.set_major_formatter(pct); ax.yaxis.set_major_formatter(pct)
-ax.set_xlabel("Target"); ax.set_ylabel("Mean misfire, unseen users")
-ax.legend(frameon=False, fontsize=6.5, loc="upper left")
-fig.tight_layout(); fig.savefig(P / "figures" / "shared.pdf"); plt.close(fig)
+# shared models
+for path, dpi in ((P / "figures" / "shared.pdf", None), (F / "shared_models.png", 170)):
+    fig, axx = plt.subplots(1, 2, figsize=(3.5, 1.8), sharey=True)
+    for j, (d, name) in enumerate((("uci", "UCI"), ("3dc", "3DC"))):
+        df = sh[d][sh[d].vote == 1]
+        for m, c, l in (("tuned", "#c44e52", "Tuned"), ("conformal", "#d98c2b", "Conformal"),
+                        ("conformal+personal", "#1a9e5c", "Conformal + personal")):
+            g = df[df.method == m].groupby("alpha").misfire.mean()
+            axx[j].plot(100 * g.index, 100 * g, "o-", ms=2.5, color=c, label=l if j == 0 else None)
+        axx[j].plot([3, 20], [3, 20], "k:", lw=0.8)
+        axx[j].set_title(name, fontsize=8); axx[j].set_xlabel("Target (%)")
+    axx[0].set_ylabel("Mean misfire (%)")
+    fig.legend(loc="upper center", ncol=3, frameon=False, fontsize=6)
+    fig.tight_layout(rect=(0, 0, 1, 0.88)); fig.savefig(path, dpi=dpi); plt.close(fig)
 
 with open(P / "numbers.tex", "a") as f:
-    f.write(f"\\newcommand{{\\examplePerson}}{{{macros_pid}}}\n")
-print(f"{len(macros) + 1} macros, 2 tables, 3 figures")
-for k in ("shiftAdaptCI", "wilcoxP", "wilcoxOracleP", "nRuns", "nPeople", "keptVotePersTdc", "rfKeptConf"):
-    print(k, macros[k])
+    for k, v in macros_extra.items():
+        f.write(f"\\newcommand{{\\{k}}}{{{v}}}\n")
+macros.update(macros_extra)
+for k in sorted(macros):
+    print(f"{k:32s} {macros[k]}")

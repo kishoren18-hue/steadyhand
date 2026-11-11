@@ -148,10 +148,10 @@ input[type=range] { width: 180px; max-width: 100%; accent-color: var(--ours); }
 
   <section class="findings" aria-label="Results across all 36 people">
     <div class="finding"><span class="lbl">Tuned on training people</span><span class="big">6 of 6</span>
-      <p>targets broken on new users. Asked for ≤5% misfires, new users got 6.3%. Same on a second dataset.</p></div>
+      <p>targets broken on new users. Asked for ≤5% misfires, new users got 6.5%. Same on a second dataset.</p></div>
     <div class="finding"><span class="lbl">Calibrated (ours)</span><span class="big">0 of 6</span>
-      <p>targets broken on average. Asked for ≤5%, new users got 1.5%.</p></div>
-    <div class="finding"><span class="lbl">Worst person, 5% target</span><span class="big">25% → 9%</span>
+      <p>targets broken on average. Asked for ≤5%, new users got 1.4%.</p></div>
+    <div class="finding"><span class="lbl">Worst person, 5% target</span><span class="big">24% → 9%</span>
       <p>misfire rate of the single worst user, LibEMG default vs ours. All figures use LibEMG's LDA classifier.</p></div>
   </section>
 
@@ -200,6 +200,7 @@ input[type=range] { width: 180px; max-width: 100%; accent-color: var(--ours); }
 </template>
 
 <script>
+const REST = 0;   // UCI class 0 is rest: predicting it holds the hand still, never a misfire
 const DATA = __DATA__;
 const G = DATA.gestures.map(g => g[0].toUpperCase() + g.slice(1));
 const ALPHAS = DATA.alphas;
@@ -264,7 +265,7 @@ function load() {
   for (const k of ['fixed', 'ours']) {
     const c = C[k], t = T[k], n = P.y.length;
     let acted = 0, mis = 0;
-    for (let i = 0; i < n; i++) if (P.conf[i] > t) { acted++; if (P.pred[i] !== P.y[i]) mis++; }
+    for (let i = 0; i < n; i++) if (P.conf[i] > t && P.pred[i] !== REST) { acted++; if (P.pred[i] !== P.y[i]) mis++; }
     c.acted.textContent = (acted / n * 100).toFixed(0) + '%';
     c.mis.textContent = (mis / n * 100).toFixed(1) + '%';
     c.mis.classList.toggle('warn', mis / n > ALPHAS[+tIn.value]);
@@ -287,7 +288,7 @@ function drawStrip(c, t) {
   const n = P.y.length, bw = w / n;
   const ok = css('--ink'), bad = css('--misfire'), hold = css('--hold');
   for (let i = 0; i < n; i++) {
-    const act = P.conf[i] > t, wrong = P.pred[i] !== P.y[i];
+    const act = P.conf[i] > t && P.pred[i] !== REST, wrong = P.pred[i] !== P.y[i];
     x.fillStyle = !act ? hold : wrong ? bad : ok;
     const top = !act ? h * .35 : wrong ? 0 : h * .18, ht = !act ? h * .3 : wrong ? h : h * .64;
     x.fillRect(i * bw, top, Math.max(bw - .4, .6), ht);
@@ -313,7 +314,7 @@ function render() {
   document.getElementById('clock').textContent = `${(i * DATA.increment_ms / 1000).toFixed(1)} s of ${(P.y.length * DATA.increment_ms / 1000).toFixed(1)} s`;
   document.getElementById('prog').style.width = (i / (P.y.length - 1) * 100) + '%';
   for (const k of ['fixed', 'ours']) {
-    const c = C[k], conf = P.conf[i], act = conf > T[k], wrong = P.pred[i] !== P.y[i];
+    const c = C[k], conf = P.conf[i], act = conf > T[k] && P.pred[i] !== REST, wrong = P.pred[i] !== P.y[i];
     let cls = 'hold', text = 'Holding still';
     if (act) { c.last = P.pred[i]; cls = wrong ? 'bad' : 'act'; text = wrong ? `Misfire: moved to ${G[P.pred[i]].toLowerCase()}` : `Moving: ${G[P.pred[i]].toLowerCase()}`; }
     pose(c, c.last, act && wrong);
@@ -366,7 +367,7 @@ load();
   const T = thresholds();
   for (let i = 0; i < P.y.length; i++) {
     const a = P.conf[i] > T.fixed, b = P.conf[i] > T.ours;
-    if (a && !b && P.pred[i] !== P.y[i]) { frame = i; break; }
+    if (a && !b && P.pred[i] !== P.y[i] && P.pred[i] !== REST) { frame = i; break; }
   }
   render();
 })();

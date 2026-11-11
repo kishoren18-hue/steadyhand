@@ -2,14 +2,22 @@
 \toprule
  & \multicolumn{3}{c}{Electrode shift (21)} & \multicolumn{3}{c}{Arm position (12)} & \multicolumn{3}{c}{UCI, later session (36)} & \multicolumn{3}{c}{3DC, later session (22)} \\
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}\cmidrule(lr){11-13}
-Cutoff & Mean & Worst & Moves & Mean & Worst & Moves & Mean & Worst & Moves & Mean & Worst & Moves \\
+Cutoff & Mean & Worst & Corr. & Mean & Worst & Corr. & Mean & Worst & Corr. & Mean & Worst & Corr. \\
 \midrule
-Fixed 0.90 (LibEMG) & 46.1 & 82.1 & 89 & 20.5 & 33.7 & 92 & 10.8 & 39.1 & 98 & 10.7 & 25.0 & 83 \\
-Personal & 44.3 & 87.6 & 85 & 23.4 & 37.7 & 97 & 5.0 & 24.9 & 76 & 7.3 & 16.1 & 74 \\
-Conformal, before change & 12.0 & 37.0 & 26 & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.6 & 3.4 & 24 \\
-Conformal, after change & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.5 & 3.3 & 22 \\
-Adaptive (ours) & 4.9 & 5.0 & 31 & 4.0 & 5.0 & 69 & 3.7 & 5.2 & 83 & 3.9 & 4.7 & 71 \\
-Adaptive, 10\% feedback & 5.3 & 7.9 & 19 & 4.6 & 5.3 & 60 & 3.6 & 9.2 & 65 & 3.5 & 4.8 & 59 \\
-Best fixed, hindsight & 3.3 & 5.0 & 14 & 4.9 & 5.0 & 56 & 3.0 & 5.0 & 65 & 5.0 & 5.0 & 67 \\
+Fixed 0.90 (LibEMG) & 44.0 & 78.5 & 33 & 18.8 & 31.4 & 74 & 8.6 & 25.4 & 86 & 10.2 & 24.0 & 72 \\
+ROC per class & 39.5 & 71.5 & 30 & 16.6 & 32.2 & 71 & 6.1 & 21.1 & 82 & 7.1 & 19.9 & 67 \\
+Conformal, before change & 15.4 & 41.6 & 10 & 0.0 & 0.0 & 0 & 0.2 & 5.8 & 2 & 0.8 & 4.3 & 29 \\
+Conformal, after change & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.0 & 0.0 & 0 & 0.5 & 3.4 & 22 \\
+Best fixed, hindsight & 3.5 & 5.0 & 8 & 4.9 & 5.0 & 55 & 3.1 & 5.0 & 64 & 5.0 & 5.0 & 63 \\
+Adaptive & 4.9 & 5.0 & 19 & 3.9 & 5.0 & 68 & 3.4 & 5.2 & 78 & 3.7 & 4.7 & 69 \\
+\midrule
+Retrain + fixed 0.90 & 6.6 & 10.3 & 82 & 3.0 & 6.2 & 88 & 6.1 & 19.0 & 88 & 5.0 & 10.6 & 75 \\
+Retrain + conformal & 1.5 & 6.2 & 20 & 0.0 & 0.0 & 0 & 0.1 & 2.1 & 1 & 0.3 & 1.6 & 24 \\
+Retrain + adaptive & 2.0 & 3.9 & 80 & 1.6 & 2.8 & 89 & 2.2 & 4.6 & 81 & 3.0 & 3.8 & 77 \\
+\midrule
+10\% labels: adaptive (plain) & 5.2 & 8.3 & 10 & 4.5 & 5.3 & 59 & 3.1 & 8.3 & 65 & 3.4 & 4.8 & 56 \\
+10\% labels: adaptive (weighted) & 5.0 & 7.4 & 10 & 3.9 & 5.4 & 55 & 3.4 & 10.0 & 62 & 3.8 & 6.2 & 60 \\
+10\% labels: retrain + fixed & 13.0 & 25.3 & 70 & 6.2 & 13.3 & 84 & 7.7 & 23.6 & 87 & 7.5 & 18.4 & 74 \\
+10\% labels: retrain + adaptive & 3.3 & 5.7 & 52 & 2.4 & 3.8 & 77 & 2.6 & 10.0 & 66 & 3.4 & 4.5 & 63 \\
 \bottomrule
 \end{tabular}

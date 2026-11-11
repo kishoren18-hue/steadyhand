@@ -47,6 +47,10 @@ GESTURES = {
 }
 
 
+# class index of "rest" in each dataset (predicting it holds the device still)
+REST = {d: g.index("rest") for d, g in GESTURES.items()}
+
+
 def _runs(labels):
     """Yield (start, end, label) for each run of identical labels."""
     change = np.flatnonzero(np.diff(labels)) + 1

@@ -20,4 +20,4 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[test]"
       - name: Run tests
-        run: python -m pytest tests -q
+        run: python -m pytest tests contrib/libemg -q

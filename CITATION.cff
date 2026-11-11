@@ -4,9 +4,9 @@ title: "SteadyHand: rejection cutoffs for myoelectric control with misfire-rate 
 authors:
   - family-names: Nuthalapati
     given-names: Kishore
-version: 0.2.0
+version: 0.3.0
 doi: 10.5281/zenodo.23990312
-date-released: 2026-11-05
+date-released: 2026-11-11
 license: MIT
 repository-code: "https://github.com/kishoren18-hue/steadyhand"
 url: "https://kishoren18-hue.github.io/steadyhand/"
